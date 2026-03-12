@@ -428,6 +428,9 @@ struct jendela {
     int buffer_idx;     /* Index ke array buffers global */
     struct view_state view;
     int ratio;
+    
+    /* Flag untuk jendela bantuan */
+    int adalah_bantuan; /* 1 = jendela bantuan, 0 = jendela biasa */
 };
 
 /* ============================================================
@@ -753,6 +756,35 @@ int teks_format(double angka, const char *format, char *keluaran, size_t ukuran)
 int teks_isnumber(const char *teks, double *keluaran);
 int teks_istext(const char *teks, double *keluaran);
 int teks_isblank(const char *teks, double *keluaran);
+int teks_rept(const char *teks, double jumlah, char *keluaran, size_t ukuran);
+int teks_char(double kode, char *keluaran, size_t ukuran);
+int teks_code(const char *teks, double *keluaran);
+int teks_clean(const char *teks, char *keluaran, size_t ukuran);
+int teks_exact(const char *teks1, const char *teks2, double *keluaran);
+int teks_fixed(double angka, double desimal, int tanpa_koma,
+               char *keluaran, size_t ukuran);
+int teks_dollar(double angka, double desimal, char *keluaran, size_t ukuran);
+int teks_proper(const char *str, char *keluaran, size_t ukuran);
+int teks_reverse(const char *str, char *keluaran, size_t ukuran);
+int teks_repeat(const char *teks, double jumlah, char *keluaran, size_t ukuran);
+int teks_lenb(const char *str, double *keluaran);
+int teks_t(const char *teks, char *keluaran, size_t ukuran);
+int teks_n(const char *teks, double *keluaran);
+int teks_asc(const char *teks, char *keluaran, size_t ukuran);
+int teks_jis(const char *teks, char *keluaran, size_t ukuran);
+int teks_bahttext(double angka, char *keluaran, size_t ukuran);
+int teks_phonetic(const char *teks, char *keluaran, size_t ukuran);
+int teks_unichar(double kode, char *keluaran, size_t ukuran);
+int teks_unicode(const char *teks, double *keluaran);
+int teks_concatenate(const char **teks_array, int jumlah,
+                     char *keluaran, size_t ukuran);
+int teks_join(const char *pemisah, const char **teks_array, int jumlah,
+              char *keluaran, size_t ukuran);
+int teks_textjoin(const char *pemisah, int abaikan_kosong,
+                  const char **teks_array, int jumlah,
+                  char *keluaran, size_t ukuran);
+int teks_split(const char *teks, const char *pemisah, int indeks,
+               char *keluaran, size_t ukuran);
 
 /* --- waktu.c --- */
 int waktu_sekarang_epoch(void);
@@ -788,11 +820,311 @@ int waktu_format_tanggal_serial(double serial, const char *format,
 int waktu_format_waktu_serial(double serial, const char *format,
                                char *keluaran, size_t ukuran);
 
-/* --- konversi.c (opsional, bisa dimasukkan ke hitung.c) --- */
-int konversi_satuan(const char *nama, double nilai, const char *ke,
+/* --- konversi.c - Fungsi Konversi Satuan --- */
+/* Konversi satuan umum */
+int konversi_satuan(double nilai, const char *dari, const char *ke,
                     double *keluaran);
-int konversi_mata_uang(const char *id_nama, double nilai, const char *id_ke,
+int konversi_mata_uang(const char *dari, double nilai, const char *ke,
                        double *keluaran);
+
+/* Konversi basis bilangan - output angka */
+int konversi_bin2dec(const char *biner, double *keluaran);
+int konversi_oct2dec(const char *oktal, double *keluaran);
+int konversi_hex2dec(const char *hexa, double *keluaran);
+
+/* Konversi basis bilangan - output teks */
+int konversi_dec2bin(double angka, char *keluaran, size_t ukuran);
+int konversi_dec2oct(double angka, char *keluaran, size_t ukuran);
+int konversi_dec2hex(double angka, char *keluaran, size_t ukuran);
+int konversi_bin2oct(const char *biner, char *keluaran, size_t ukuran);
+int konversi_bin2hex(const char *biner, char *keluaran, size_t ukuran);
+int konversi_oct2bin(const char *oktal, char *keluaran, size_t ukuran);
+int konversi_oct2hex(const char *oktal, char *keluaran, size_t ukuran);
+int konversi_hex2bin(const char *hexa, char *keluaran, size_t ukuran);
+int konversi_hex2oct(const char *hexa, char *keluaran, size_t ukuran);
+
+/* Dispatcher */
+int konversi_eval(const char *nama, const double *args, int nargs,
+                  const char *teks_arg, char *teks_keluaran, size_t ukuran,
+                  double *keluaran);
+
+/* --- keuangan.c - Fungsi Keuangan --- */
+/* Nilai Waktu Uang */
+int keuangan_pv(double rate, double nper, double pmt, double fv,
+                int type, double *keluaran);
+int keuangan_fv(double rate, double nper, double pmt, double pv,
+                int type, double *keluaran);
+int keuangan_pmt(double rate, double nper, double pv, double fv,
+                 int type, double *keluaran);
+int keuangan_rate(double nper, double pmt, double pv, double fv,
+                  int type, double guess, double *keluaran);
+int keuangan_nper(double rate, double pmt, double pv, double fv,
+                  int type, double *keluaran);
+
+/* NPV dan IRR */
+int keuangan_npv(double rate, const double *cashflows, int jumlah,
+                 double *keluaran);
+int keuangan_xnpv(double rate, const double *cashflows, const double *dates,
+                  int jumlah, double *keluaran);
+int keuangan_irr(const double *cashflows, int jumlah, double guess,
+                 double *keluaran);
+int keuangan_mirr(const double *cashflows, int jumlah,
+                  double finance_rate, double reinvest_rate,
+                  double *keluaran);
+
+/* Depresiasi */
+int keuangan_sln(double cost, double salvage, double life,
+                 double *keluaran);
+int keuangan_ddb(double cost, double salvage, double life,
+                 double period, double factor, double *keluaran);
+int keuangan_syd(double cost, double salvage, double life,
+                 double period, double *keluaran);
+int keuangan_db(double cost, double salvage, double life,
+                double period, double month, double *keluaran);
+int keuangan_vdb(double cost, double salvage, double life,
+                 double start_period, double end_period,
+                 double factor, int no_switch, double *keluaran);
+
+/* Pembayaran */
+int keuangan_ipmt(double rate, double per, double nper, double pv,
+                  double fv, int type, double *keluaran);
+int keuangan_ppmt(double rate, double per, double nper, double pv,
+                  double fv, int type, double *keluaran);
+int keuangan_cumipmt(double rate, double nper, double pv,
+                     double start_period, double end_period,
+                     int type, double *keluaran);
+int keuangan_cumprinc(double rate, double nper, double pv,
+                      double start_period, double end_period,
+                      int type, double *keluaran);
+
+/* Konversi Bunga */
+int keuangan_effect(double nominal_rate, double npery, double *keluaran);
+int keuangan_nominal(double effect_rate, double npery, double *keluaran);
+
+/* Helper */
+int keuangan_fvschedule(double principal, const double *rates,
+                        int jumlah, double *keluaran);
+int keuangan_ispmt(double rate, double per, double nper, double pv,
+                   double *keluaran);
+
+/* Treasury Bills */
+int keuangan_tbilleq(double settlement, double maturity,
+                     double discount, double *keluaran);
+int keuangan_tbillprice(double settlement, double maturity,
+                        double discount, double *keluaran);
+int keuangan_tbillyield(double settlement, double maturity,
+                        double pr, double *keluaran);
+
+/* Dispatcher */
+int keuangan_eval(const struct buffer_tabel *buf, const char *nama,
+                  const double *args, int nargs, double *keluaran);
+int keuangan_eval_range(const struct buffer_tabel *buf, const char *nama,
+                        const char *range, const double *extra_args,
+                        int nargs, double *keluaran);
+
+/* --- statistik.c - Fungsi Statistik --- */
+/* Posisi */
+int statistik_median(const struct buffer_tabel *buf, const char *range,
+                     double *keluaran);
+int statistik_mode(const struct buffer_tabel *buf, const char *range,
+                   double *keluaran);
+int statistik_percentile(const struct buffer_tabel *buf, const char *range,
+                         double k, double *keluaran);
+int statistik_quartile(const struct buffer_tabel *buf, const char *range,
+                       double quart, double *keluaran);
+
+/* Ranking */
+int statistik_large(const struct buffer_tabel *buf, const char *range,
+                    double k, double *keluaran);
+int statistik_small(const struct buffer_tabel *buf, const char *range,
+                    double k, double *keluaran);
+int statistik_rank(const struct buffer_tabel *buf, const char *range,
+                   double nilai, int descending, double *keluaran);
+
+/* Distribusi */
+int statistik_avedev(const struct buffer_tabel *buf, const char *range,
+                     double *keluaran);
+int statistik_devsq(const struct buffer_tabel *buf, const char *range,
+                    double *keluaran);
+int statistik_skew(const struct buffer_tabel *buf, const char *range,
+                   double *keluaran);
+int statistik_kurt(const struct buffer_tabel *buf, const char *range,
+                   double *keluaran);
+
+/* Populasi */
+int statistik_stdevp(const struct buffer_tabel *buf, const char *range,
+                     double *keluaran);
+int statistik_varp(const struct buffer_tabel *buf, const char *range,
+                   double *keluaran);
+
+/* Rata-rata Khusus */
+int statistik_geomean(const struct buffer_tabel *buf, const char *range,
+                      double *keluaran);
+int statistik_harmean(const struct buffer_tabel *buf, const char *range,
+                      double *keluaran);
+int statistik_trimmean(const struct buffer_tabel *buf, const char *range,
+                       double percent, double *keluaran);
+
+/* Kondisional */
+int statistik_countif(const struct buffer_tabel *buf, const char *range,
+                      const char *kondisi, double *keluaran);
+int statistik_sumif(const struct buffer_tabel *buf, const char *range,
+                    const char *kondisi, double *keluaran);
+int statistik_averageif(const struct buffer_tabel *buf, const char *range,
+                        const char *kondisi, double *keluaran);
+
+/* Korelasi dan Regresi */
+int statistik_correl(const struct buffer_tabel *buf, const char *range1,
+                     const char *range2, double *keluaran);
+int statistik_covar(const struct buffer_tabel *buf, const char *range1,
+                    const char *range2, double *keluaran);
+int statistik_slope(const struct buffer_tabel *buf, const char *range_y,
+                    const char *range_x, double *keluaran);
+int statistik_intercept(const struct buffer_tabel *buf, const char *range_y,
+                        const char *range_x, double *keluaran);
+int statistik_forecast(const struct buffer_tabel *buf, double x,
+                       const char *range_y, const char *range_x,
+                       double *keluaran);
+int statistik_rsq(const struct buffer_tabel *buf, const char *range_y,
+                  const char *range_x, double *keluaran);
+int statistik_steyx(const struct buffer_tabel *buf, const char *range_y,
+                    const char *range_x, double *keluaran);
+
+/* Dispatcher */
+int statistik_eval_agregat(const struct buffer_tabel *buf, const char *nama,
+                           const char *range, double *keluaran);
+int statistik_eval_1arg(const struct buffer_tabel *buf, const char *nama,
+                        const char *range, double arg, double *keluaran);
+int statistik_eval_2range(const struct buffer_tabel *buf, const char *nama,
+                          const char *range1, const char *range2,
+                          double *keluaran);
+
+/* --- logika.c - Fungsi Logika --- */
+/* IF dan Variasi */
+int logika_if(double kondisi, double benar, double salah, double *keluaran);
+int logika_if_teks(double kondisi, const char *benar, const char *salah,
+                   char *keluaran, size_t ukuran);
+int logika_ifs(const double *kondisi, const double *nilai,
+               int jumlah, double *keluaran);
+int logika_iferror(int ada_error, double nilai, double nilai_error,
+                   double *keluaran);
+int logika_ifna(int ada_na, double nilai, double nilai_na, double *keluaran);
+int logika_ifblank(int kosong, double nilai, double nilai_kosong,
+                   double *keluaran);
+
+/* Logika Dasar */
+int logika_and(const double *nilai, int jumlah, double *keluaran);
+int logika_or(const double *nilai, int jumlah, double *keluaran);
+int logika_not(double nilai, double *keluaran);
+int logika_xor(const double *nilai, int jumlah, double *keluaran);
+int logika_nand(const double *nilai, int jumlah, double *keluaran);
+int logika_nor(const double *nilai, int jumlah, double *keluaran);
+int logika_implies(double a, double b, double *keluaran);
+int logika_equiv(double a, double b, double *keluaran);
+
+/* Switch dan Choose */
+int logika_switch(double ekspresi, const double *nilai, const double *hasil,
+                  int jumlah, double def, double *keluaran);
+int logika_switch_teks(const char *ekspresi, const char **nilai,
+                       const double *hasil, int jumlah,
+                       double def, double *keluaran);
+int logika_choose(int indeks, const double *nilai, int jumlah,
+                  double *keluaran);
+int logika_choose_teks(int indeks, const char **nilai, int jumlah,
+                       char *keluaran, size_t ukuran);
+
+/* Konstanta */
+int logika_true(double *keluaran);
+int logika_false(double *keluaran);
+
+/* Pengecekan Tipe */
+int logika_isnumber(const char *teks, double *keluaran);
+int logika_istext(const char *teks, double *keluaran);
+int logika_isblank(const char *teks, double *keluaran);
+int logika_iserror(int error_code, double *keluaran);
+int logika_isna(int na_code, double *keluaran);
+int logika_islogical(double nilai, double *keluaran);
+int logika_isref(const char *ref, double *keluaran);
+int logika_iseven(double nilai, double *keluaran);
+int logika_isodd(double nilai, double *keluaran);
+int logika_isnontext(const char *teks, double *keluaran);
+int logika_isformula(const char *teks, double *keluaran);
+
+/* Perbandingan */
+int logika_equal(double a, double b, double *keluaran);
+int logika_notequal(double a, double b, double *keluaran);
+int logika_greater(double a, double b, double *keluaran);
+int logika_less(double a, double b, double *keluaran);
+int logika_greatereq(double a, double b, double *keluaran);
+int logika_lesseq(double a, double b, double *keluaran);
+int logika_between(double nilai, double batas_bawah,
+                   double batas_atas, double *keluaran);
+
+/* Dispatcher */
+int logika_eval(const char *nama, const double *args, int nargs,
+                double *keluaran);
+int logika_eval_teks(const char *nama, const char *teks, double *keluaran);
+
+/* --- pencarian.c - Fungsi Lookup --- */
+/* VLOOKUP */
+int pencarian_vlookup(const struct buffer_tabel *buf, double nilai_cari,
+                      const char *range, int kolom_hasil, int exact,
+                      double *keluaran);
+int pencarian_vlookup_teks(const struct buffer_tabel *buf, const char *teks_cari,
+                           const char *range, int kolom_hasil, int exact,
+                           char *keluaran, size_t ukuran);
+
+/* HLOOKUP */
+int pencarian_hlookup(const struct buffer_tabel *buf, double nilai_cari,
+                      const char *range, int baris_hasil, int exact,
+                      double *keluaran);
+int pencarian_hlookup_teks(const struct buffer_tabel *buf, const char *teks_cari,
+                           const char *range, int baris_hasil, int exact,
+                           char *keluaran, size_t ukuran);
+
+/* LOOKUP */
+int pencarian_lookup(const struct buffer_tabel *buf, double nilai_cari,
+                     const char *range_cari, const char *range_hasil,
+                     double *keluaran);
+
+/* INDEX */
+int pencarian_index(const struct buffer_tabel *buf, const char *range,
+                    int baris, int kolom, double *keluaran);
+int pencarian_index_teks(const struct buffer_tabel *buf, const char *range,
+                         int baris, int kolom, char *keluaran, size_t ukuran);
+
+/* MATCH */
+int pencarian_match(const struct buffer_tabel *buf, double nilai_cari,
+                    const char *range, int tipe, double *keluaran);
+int pencarian_match_teks(const struct buffer_tabel *buf, const char *teks_cari,
+                         const char *range, int exact, double *keluaran);
+
+/* OFFSET dan INDIRECT */
+int pencarian_offset(const struct buffer_tabel *buf, const char *referensi,
+                     int offset_baris, int offset_kolom, double *keluaran);
+int pencarian_indirect(const struct buffer_tabel *buf, const char *teks_ref,
+                       double *keluaran);
+
+/* ROW dan COLUMN */
+int pencarian_row(const char *referensi, double *keluaran);
+int pencarian_column(const char *referensi, double *keluaran);
+int pencarian_rows(const char *range, double *keluaran);
+int pencarian_columns(const char *range, double *keluaran);
+
+/* ADDRESS */
+int pencarian_address(int baris, int kolom, int tipe,
+                      char *keluaran, size_t ukuran);
+
+/* AREAS */
+int pencarian_areas(const char *referensi, double *keluaran);
+
+/* Dispatcher */
+int pencarian_eval(const struct buffer_tabel *buf, const char *nama,
+                   const double *args, int nargs, const char *range,
+                   double *keluaran);
+int pencarian_eval_teks(const struct buffer_tabel *buf, const char *nama,
+                        const char *teks_cari, const char *range,
+                        double *keluaran);
 
 /* ============================================================
  * I/O File (berkas.c)
@@ -1045,5 +1377,17 @@ int bantuan_aktif(void);
 
 /* Cleanup resources bantuan */
 void bersihkan_bantuan(void);
+
+/* Render konten bantuan ke area tertentu (untuk window manager) */
+void render_konten_bantuan(struct rect area, int aktif);
+
+/* Proses input untuk jendela bantuan (return 1 jika ditangani) */
+int proses_input_bantuan_window(int ch, unsigned char *seq, int seq_len);
+
+/* Inisialisasi konten bantuan (load file) */
+int inisialisasi_konten_bantuan(void);
+
+/* Dapatkan state bantuan untuk disimpan/restored */
+struct jendela *dapatkan_jendela_bantuan(void);
 
 #endif /* TABEL_H */
