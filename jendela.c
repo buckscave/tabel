@@ -426,6 +426,41 @@ void render_tree_jendela(struct jendela *node) {
 }
 
 /* ========================================================================== *
+ * Toggle Orientasi Split                                                     *
+ * ========================================================================== */
+void toggle_orientasi_split(void) {
+    struct jendela *target = NULL;
+    
+    if (!jendela_aktif) return;
+    
+    /* Cari parent split dari jendela aktif */
+    if (jendela_aktif->parent && 
+        (jendela_aktif->parent->jenis == JENIS_SPLIT_H ||
+         jendela_aktif->parent->jenis == JENIS_SPLIT_V)) {
+        target = jendela_aktif->parent;
+    }
+    
+    if (!target) {
+        snprintf(pesan_status, sizeof(pesan_status), 
+                "Tidak ada split untuk di-toggle");
+        return;
+    }
+    
+    /* Toggle orientasi */
+    if (target->jenis == JENIS_SPLIT_H) {
+        target->jenis = JENIS_SPLIT_V;
+        snprintf(pesan_status, sizeof(pesan_status), 
+                "Split diubah ke Vertikal");
+    } else {
+        target->jenis = JENIS_SPLIT_H;
+        snprintf(pesan_status, sizeof(pesan_status), 
+                "Split diubah ke Horizontal");
+    }
+    
+    paksa_recalc_layout();
+}
+
+/* ========================================================================== *
  * Sinkronisasi Buffer Array Shift                                            *
  * ========================================================================== */
 static void perbarui_index_rekursif(struct jendela *node, int idx_ditutup) {

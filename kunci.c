@@ -429,7 +429,6 @@ void mode_edit_berantai(struct buffer_tabel *buf, int x_mulai,
     int tombol;
 
     /* Dapatkan batas jendela aktif untuk posisi input bar */
-    /* Input bar ada di baris ke-2 dari atas (win_y + 2), bukan topbar (win_y + 1) */
     int win_x = jendela_aktif ? jendela_aktif->rect.x : 0;
     int win_y = jendela_aktif ? jendela_aktif->rect.y : 1;
     int win_w = jendela_aktif ? jendela_aktif->rect.w : ambil_lebar_terminal();
@@ -477,7 +476,8 @@ void mode_edit_berantai(struct buffer_tabel *buf, int x_mulai,
             write(STDOUT_FILENO, " ", 1);
         }
         
-        /* Tulis label dengan warna putih cerah (menggunakan konstanta WARNAD_PUTIH) */
+        /* Tulis label dengan warna putih cerah 
+         * (menggunakan konstanta WARNAD_PUTIH) */
         atur_posisi_kursor(win_x + 2, input_bar_y);
         warna_tulis_seq(STDOUT_FILENO, WARNAD_PUTIH, WARNAL_DEFAULT);
         write(STDOUT_FILENO, label, strlen(label));
@@ -570,9 +570,11 @@ void mode_edit_berantai(struct buffer_tabel *buf, int x_mulai,
             
             /* Format: "Kolom Xn: isi" atau "Kolom Xn: [KOSONG]" */
             if (teks_sel[0] == '\0') {
-                snprintf(teks_redraw, sizeof(teks_redraw), "Kolom %c%d: [KOSONG]", 'A' + x, y + 1);
+                snprintf(teks_redraw, sizeof(teks_redraw), 
+                        "Kolom %c%d: [KOSONG]", 'A' + x, y + 1);
             } else {
-                snprintf(teks_redraw, sizeof(teks_redraw), "Kolom %c%d: %s", 'A' + x, y + 1, teks_norm);
+                snprintf(teks_redraw, sizeof(teks_redraw), 
+                        "Kolom %c%d: %s", 'A' + x, y + 1, teks_norm);
             }
             
             /* Clear baris dan tulis dengan warna abu-abu */
@@ -781,6 +783,22 @@ static int kunci_escape_sequence(struct buffer_tabel *cur,
         return 1;
     }
 
+    /* Alt+Q (0xC3 0xB1): Tutup window aktif */
+    if (panjang_kunci == 2 &&
+        (unsigned char)buf_kunci[0] == 0xC3 &&
+        (unsigned char)buf_kunci[1] == 0xB1) {
+        tutup_window_aktif();
+        return 1;
+    }
+
+    /* Alt+r (ESC r atau 0x1B 0x72): Toggle orientasi split */
+    if (panjang_kunci == 2 &&
+        (unsigned char)buf_kunci[0] == 0xC3 &&
+        (unsigned char)buf_kunci[1] == 0x72) {
+        toggle_orientasi_split();
+        return 1;
+    }
+
     /* Alt+y (0xC3 0xB9): Yank kolom penuh */
     if (panjang_kunci == 2 &&
         (unsigned char)buf_kunci[0] == 0xC3 &&
@@ -855,8 +873,8 @@ static int kunci_prefix(struct buffer_tabel *cur,
             split_window_aktif(0, -1);
         } else if (c == 'v') {
             split_window_aktif(1, -1);
-        } else if (c == 'q') {
-            tutup_window_aktif();
+        } else if (c == 'r') {
+            toggle_orientasi_split();
         } else {
             snprintf(pesan_status, sizeof(pesan_status), "Batal Window");
         }

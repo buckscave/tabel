@@ -96,19 +96,6 @@ static int banding_str(const char *s1, const char *s2) {
     return 0;
 }
 
-/* Periksa apakah string diawali prefix */
-static int awalan_str(const char *str, const char *pref) {
-    if (!str || !pref) return 0;
-    while (*pref) {
-        char c1 = (char)toupper((unsigned char)*str);
-        char c2 = (char)toupper((unsigned char)*pref);
-        if (c1 != c2) return 0;
-        str++;
-        pref++;
-    }
-    return 1;
-}
-
 /* ========================================================================== *
  * PARSING REFERENSI SEL
  * ========================================================================== */

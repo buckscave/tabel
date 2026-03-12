@@ -26,8 +26,8 @@
  * ============================================================ */
 static struct glyph buffer_depan[BARIS_MAKS][KOLOM_MAKS];
 static struct glyph buffer_belakang[BARIS_MAKS][KOLOM_MAKS];
-static int lebar_layar = 0;
-static int tinggi_layar = 0;
+int lebar_layar = 0;
+int tinggi_layar = 0;
 
 /* ============================================================
  * CLIP RECT
@@ -149,7 +149,7 @@ static void taruh_teks_elipsis(int x, int y, const char *s, int max_kol)
 }
 
 /* Isi garis horizontal dengan spasi */
-static void isi_garis_h(int x1, int x2, int y)
+void isi_garis_h(int x1, int x2, int y)
 {
     int x;
 
@@ -1975,107 +1975,4 @@ void render(const struct buffer_tabel *buf)
 {
     (void)buf;
     render_semua_jendela();
-}
-
-void render_aseli(const struct buffer_tabel *buf)
-{
-    struct rect area;
-
-    area.x = 0;
-    area.y = 0;
-    area.w = lebar_layar;
-    area.h = tinggi_layar - 1;
-
-    bersihkan_layar_buffer();
-    render_jendela_spesifik(buf, area, 1);
-    gambar_message_bar();
-    pesan_status[0] = '\0';
-    terapkan_delta();
-}
-
-/* ============================================================
- * TAMPILAN BANTUAN
- * ============================================================ */
-
-void tampilkan_bantuan(void)
-{
-    const char *teks_bantuan[] = {
-        "=== BANTUAN TABEL v3.0 ===", "",
-        "Navigasi:",
-        "  Panah        : Pindah sel",
-        "  Shift+Tab    : Mundur sel",
-        "  Alt+Panah    : Resize sel",
-        "  g[A][1]      : Lompat ke A1",
-        "",
-        "Edit:",
-        "  Enter        : Edit sel",
-        "  [ , ] , \\    : Align Kiri, Kanan, Tengah",
-        "",
-        "Seleksi & Blok:",
-        "  v            : Seleksi Manual",
-        "  V            : Seleksi (Label + Nomor Baris Sel)",
-        "  Alt + v      : Seleksi Baris Penuh",
-        "  Ctrl + v     : Seleksi Kolom Penuh",
-        "  y            : Menyalin Isi Sel",
-        "  Alt + y      : Menyalin Kolom Penuh",
-        "  Ctrl + y     : Menyalin Baris Penuh",
-        "  x            : Memotong Isi Sel",
-        "  Alt + x      : Memotong Kolom Penuh",
-        "  Ctrl + x     : Memotong Baris Penuh",
-        "  p            : Menempelkan Isi Sel",
-        "  Alt + p      : Menempelkan Sebelum Kolom/Baris Aktif",
-        "  Ctrl + p     : Menempelkan Sesudah Kolom/Baris Aktif",
-        "  P            : Menempelkan Isi Sel Kedalam Area Seleksi",
-        "  m            : Menggabung Sel",
-        "  M            : Mengurai Sel Yang Tergabung",
-        "",
-        "Window Manager:",
-        "  W s / W v    : Split Window Horizontal / Vertikal",
-        "  W q          : Tutup Window Saat Ini",
-        "  Alt+Shift+Panah : Resize Window",
-        "  Alt+Panah    : Pindah Fokus Window",
-        "",
-        "Baris & Kolom:",
-        "  i / I        : Insert Kolom",
-        "  o / O        : Insert Baris",
-        "  d / b        : Hapus Kolom / Baris (tekan 2x)",
-        "",
-        "Data & File:",
-        "  s            : Urutkan (Sort)",
-        "  w / e        : Simpan / Buka (CSV/TXT)",
-        "  u / r        : Undo / Redo",
-        "  q            : Keluar",
-        "",
-        "Formula:",
-        "  Awali dengan '=', Contoh: =A1+B2, =SUM(A1:A5)",
-        "",
-        "Tab:",
-        "  t            : Buka tab baru",
-        "  T            : Tutup tab aktif",
-        "  [ / ]        : Pindah tab sebelumnya/berikutnya",
-    };
-    int n = sizeof(teks_bantuan) / sizeof(teks_bantuan[0]);
-    int i;
-    unsigned char buang;
-
-    bersihkan_layar_buffer();
-
-    warna_set_buffer(WARNAD_DEFAULT, WARNAL_DEFAULT);
-    for (i = 0; i < n && i < tinggi_layar - 2; i++) {
-        taruh_teks(2, 2 + i, teks_bantuan[i]);
-    }
-
-    warna_set_buffer(WARNAD_PUTIH, WARNAL_DEFAULT);
-    taruh_teks(2, tinggi_layar - 1,
-               "[ Tekan tombol apapun untuk kembali... ]");
-
-    terapkan_delta();
-    tunggu_tombol_lanjut();
-
-    while (read(STDIN_FILENO, &buang, 1) > 0);
-
-    if (buffer_aktif >= 0 && buffers) {
-        render(buffers[buffer_aktif]);
-        flush_stdout();
-    }
 }

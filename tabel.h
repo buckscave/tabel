@@ -603,6 +603,7 @@ void split_window_aktif(int arah, int ratio); /* 0=H, 1=V */
 void resize_window_aktif(int delta);
 void tutup_window_aktif(void);
 void pindah_fokus_jendela(int arah_kunci);
+void toggle_orientasi_split(void);
 void render_tree_jendela(struct jendela *node);
 void render_semua_jendela(void);
 void simpan_state_jendela(struct jendela *j);
@@ -947,7 +948,6 @@ void tunggu_tombol_lanjut(void);
 /* Render & UI */
 void prompt_warna(struct buffer_tabel *buf, int mode_teks);
 void render(const struct buffer_tabel *buf);
-void tampilkan_bantuan(void);
 void hitung_viewport(const struct buffer_tabel *buf,
     int *x_awal, int *y_awal, int *lebar_vis, int *tinggi_vis,
     int *kolom_mulai, int *kolom_akhir, int *baris_mulai, int *baris_akhir);
@@ -1021,7 +1021,29 @@ int warna_sama(warna_depan wd1, warna_latar wl1, warna_depan wd2,
 void warna_copy(struct warna_kombinasi *dst, 
     const struct warna_kombinasi *src);
 void warna_init(struct warna_kombinasi *wc);
-void warna_kombinasi_set(struct warna_kombinasi *wc, warna_depan wd, 
+void warna_kombinasi_set(struct warna_kombinasi *wc, warna_depan wd,
     warna_latar wl);
+
+/* ============================================================
+ * Bantuan (bantuan.c)
+ * ============================================================ */
+
+/* Tampilkan bantuan dengan split window profesional */
+void tampilkan_bantuan(void);
+
+/* Tampilkan bantuan versi sederhana (fallback) */
+void tampilkan_bantuan_sederhana(void);
+
+/* Toggle bantuan - buka/tutup */
+void toggle_bantuan(void);
+
+/* Tutup bantuan */
+void tutup_bantuan(void);
+
+/* Cek apakah mode bantuan aktif */
+int bantuan_aktif(void);
+
+/* Cleanup resources bantuan */
+void bersihkan_bantuan(void);
 
 #endif /* TABEL_H */
