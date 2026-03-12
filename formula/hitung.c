@@ -5,7 +5,7 @@
  * Penulis: Chandra Lesmana
  * ============================================================ */
 
-#include "tabel.h"
+#include "../tabel.h"
 
 /* ============================================================
  * FUNGSI HELPER STRING (dipakai internal)
@@ -592,6 +592,410 @@ static int fn_atan2(double arg1, double arg2, double *keluaran) {
 }
 
 /* ============================================================
+ * FUNGSI MATEMATIKA LANJUTAN
+ * ============================================================ */
+
+/* FAKTORIAL HELPER */
+static double faktorial(int n) {
+    double hasil = 1.0;
+    int i;
+    if (n < 0) return -1.0; /* Error */
+    if (n == 0 || n == 1) return 1.0;
+    for (i = 2; i <= n; i++) {
+        hasil *= (double)i;
+    }
+    return hasil;
+}
+
+/* FACT: Faktorial */
+static int fn_fact(double arg, double *keluaran) {
+    int n = (int)arg;
+    if (n < 0 || n > 170) return -1; /* Max 170 untuk double */
+    *keluaran = faktorial(n);
+    return 0;
+}
+
+/* FACTDOUBLE: Faktorial Ganda (n!!) */
+static int fn_factdouble(double arg, double *keluaran) {
+    int n = (int)arg;
+    double hasil = 1.0;
+    int i;
+    if (n < 0) return -1;
+    for (i = n; i > 0; i -= 2) {
+        hasil *= (double)i;
+    }
+    *keluaran = hasil;
+    return 0;
+}
+
+/* COMBIN: Kombinasi C(n, k) = n! / (k! * (n-k)!) */
+static int fn_combin(double n_arg, double k_arg, double *keluaran) {
+    int n = (int)n_arg;
+    int k = (int)k_arg;
+    int i;
+    double hasil;
+
+    if (n < 0 || k < 0 || k > n) return -1;
+
+    /* Optimasi: C(n, k) = C(n, n-k) */
+    if (k > n - k) k = n - k;
+
+    hasil = 1.0;
+    for (i = 0; i < k; i++) {
+        hasil *= (double)(n - i) / (double)(i + 1);
+    }
+
+    *keluaran = hasil;
+    return 0;
+}
+
+/* PERMUT: Permutasi P(n, k) = n! / (n-k)! */
+static int fn_permut(double n_arg, double k_arg, double *keluaran) {
+    int n = (int)n_arg;
+    int k = (int)k_arg;
+    int i;
+    double hasil;
+
+    if (n < 0 || k < 0 || k > n) return -1;
+
+    hasil = 1.0;
+    for (i = 0; i < k; i++) {
+        hasil *= (double)(n - i);
+    }
+
+    *keluaran = hasil;
+    return 0;
+}
+
+/* SUMSQ: Jumlah Kuadrat */
+static int fn_sumsq(const struct buffer_tabel *buf, int x1, int y1,
+                    int x2, int y2, double *keluaran) {
+    double sum = 0.0;
+    int xs = (x1 < x2) ? x1 : x2;
+    int xe = (x1 > x2) ? x1 : x2;
+    int ys = (y1 < y2) ? y1 : y2;
+    int ye = (y1 > y2) ? y1 : y2;
+    int r, c;
+
+    for (r = ys; r <= ye; r++) {
+        for (c = xs; c <= xe; c++) {
+            struct nilai_lokal v;
+            if (ambil_nilai_sel_lokal(buf, c, r, &v) == 0) {
+                if (v.jenis == NILAI_ANGKA) {
+                    sum += v.angka * v.angka;
+                }
+            }
+        }
+    }
+
+    *keluaran = sum;
+    return 0;
+}
+
+/* SUMX2PY2: Sum of x^2 + y^2 */
+static int fn_sumx2py2(const struct buffer_tabel *buf, int x1a, int y1a,
+                       int x2a, int y2a, int x1b, int y1b, int x2b, int y2b,
+                       double *keluaran) {
+    double sum = 0.0;
+    int r1, c1, r2, c2;
+    struct nilai_lokal v1, v2;
+
+    for (r1 = y1a, r2 = y1b; r1 <= y2a && r2 <= y2b; r1++, r2++) {
+        for (c1 = x1a, c2 = x1b; c1 <= x2a && c2 <= x2b; c1++, c2++) {
+            if (ambil_nilai_sel_lokal(buf, c1, r1, &v1) == 0 &&
+                ambil_nilai_sel_lokal(buf, c2, r2, &v2) == 0) {
+                if (v1.jenis == NILAI_ANGKA && v2.jenis == NILAI_ANGKA) {
+                    sum += v1.angka * v1.angka + v2.angka * v2.angka;
+                }
+            }
+        }
+    }
+
+    *keluaran = sum;
+    return 0;
+}
+
+/* SUMXMY2: Sum of (x - y)^2 */
+static int fn_sumxmy2(const struct buffer_tabel *buf, int x1a, int y1a,
+                      int x2a, int y2a, int x1b, int y1b, int x2b, int y2b,
+                      double *keluaran) {
+    double sum = 0.0;
+    int r1, c1, r2, c2;
+    struct nilai_lokal v1, v2;
+
+    for (r1 = y1a, r2 = y1b; r1 <= y2a && r2 <= y2b; r1++, r2++) {
+        for (c1 = x1a, c2 = x1b; c1 <= x2a && c2 <= x2b; c1++, c2++) {
+            if (ambil_nilai_sel_lokal(buf, c1, r1, &v1) == 0 &&
+                ambil_nilai_sel_lokal(buf, c2, r2, &v2) == 0) {
+                if (v1.jenis == NILAI_ANGKA && v2.jenis == NILAI_ANGKA) {
+                    double diff = v1.angka - v2.angka;
+                    sum += diff * diff;
+                }
+            }
+        }
+    }
+
+    *keluaran = sum;
+    return 0;
+}
+
+/* SUMX2MY2: Sum of x^2 - y^2 */
+static int fn_sumx2my2(const struct buffer_tabel *buf, int x1a, int y1a,
+                       int x2a, int y2a, int x1b, int y1b, int x2b, int y2b,
+                       double *keluaran) {
+    double sum = 0.0;
+    int r1, c1, r2, c2;
+    struct nilai_lokal v1, v2;
+
+    for (r1 = y1a, r2 = y1b; r1 <= y2a && r2 <= y2b; r1++, r2++) {
+        for (c1 = x1a, c2 = x1b; c1 <= x2a && c2 <= x2b; c1++, c2++) {
+            if (ambil_nilai_sel_lokal(buf, c1, r1, &v1) == 0 &&
+                ambil_nilai_sel_lokal(buf, c2, r2, &v2) == 0) {
+                if (v1.jenis == NILAI_ANGKA && v2.jenis == NILAI_ANGKA) {
+                    sum += v1.angka * v1.angka - v2.angka * v2.angka;
+                }
+            }
+        }
+    }
+
+    *keluaran = sum;
+    return 0;
+}
+
+/* SERIESSUM: Sum of a power series
+ * SERIESSUM(x, n, m, coefficients) = sum(coefficients[i] * x^(n + i*m))
+ */
+static int fn_seriessum(double x, double n, double m,
+                        const double *coeff, int count, double *keluaran) {
+    double sum = 0.0;
+    int i;
+
+    for (i = 0; i < count; i++) {
+        double power = n + (double)i * m;
+        sum += coeff[i] * pow(x, power);
+    }
+
+    *keluaran = sum;
+    return 0;
+}
+
+/* MULTINOMIAL: Multinomial coefficient
+ * MULTINOMIAL(a, b, c, ...) = (a+b+c+...)! / (a! * b! * c! * ...)
+ */
+static int fn_multinomial(const double *args, int count, double *keluaran) {
+    double sum = 0.0;
+    double denom = 1.0;
+    int i;
+
+    for (i = 0; i < count; i++) {
+        int val = (int)args[i];
+        if (val < 0) return -1;
+        sum += (double)val;
+        denom *= faktorial(val);
+    }
+
+    *keluaran = faktorial((int)sum) / denom;
+    return 0;
+}
+
+/* ROMAN: Konversi ke angka Romawi */
+static int fn_roman(double arg, double *keluaran) {
+    int num = (int)arg;
+    static const char *roman[] = {
+        "M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"
+    };
+    static const int values[] = {
+        1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1
+    };
+    char result[64] = "";
+    int i;
+
+    if (num < 1 || num > 3999) return -1;
+
+    for (i = 0; i < 13 && num > 0; i++) {
+        while (num >= values[i]) {
+            strcat(result, roman[i]);
+            num -= values[i];
+        }
+    }
+
+    /* Kembalikan sebagai string (untuk sementara hash sederhana) */
+    *keluaran = (double)atoi(result);
+    return 0;
+}
+
+/* ARABIC: Konversi dari angka Romawi ke integer */
+static int fn_arabic(const char *roman, double *keluaran) {
+    int result = 0;
+    int i;
+    int len;
+    static const struct { char ch; int val; } map[] = {
+        {'I', 1}, {'V', 5}, {'X', 10}, {'L', 50},
+        {'C', 100}, {'D', 500}, {'M', 1000}
+    };
+
+    if (!roman || roman[0] == '\0') return -1;
+    len = (int)strlen(roman);
+
+    for (i = 0; i < len; i++) {
+        int j;
+        int current = 0, next = 0;
+        char c = (char)toupper((unsigned char)roman[i]);
+
+        /* Cari nilai saat ini */
+        for (j = 0; j < 7; j++) {
+            if (map[j].ch == c) {
+                current = map[j].val;
+                break;
+            }
+        }
+        if (current == 0) return -1;
+
+        /* Cari nilai berikutnya untuk aturan pengurangan */
+        if (i + 1 < len) {
+            char nc = (char)toupper((unsigned char)roman[i + 1]);
+            for (j = 0; j < 7; j++) {
+                if (map[j].ch == nc) {
+                    next = map[j].val;
+                    break;
+                }
+            }
+        }
+
+        /* Aturan pengurangan (IV = 4, IX = 9, dll) */
+        if (current < next) {
+            result -= current;
+        } else {
+            result += current;
+        }
+    }
+
+    *keluaran = (double)result;
+    return 0;
+}
+
+/* BASE: Konversi desimal ke basis lain (2-36) */
+static int fn_base(double angka, double basis, double min_len,
+                   char *keluaran, size_t ukuran) {
+    static const char digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    long long num = (long long)angka;
+    int base = (int)basis;
+    int minlen = (int)min_len;
+    char buffer[65];
+    int idx = 64;
+    int len;
+
+    if (base < 2 || base > 36) return -1;
+    if (num < 0) return -1;
+
+    buffer[idx] = '\0';
+
+    if (num == 0) {
+        buffer[--idx] = '0';
+    } else {
+        while (num > 0) {
+            buffer[--idx] = digits[num % base];
+            num /= base;
+        }
+    }
+
+    /* Tambah padding nol jika perlu */
+    len = 64 - idx;
+    while (len < minlen && idx > 0) {
+        buffer[--idx] = '0';
+        len++;
+    }
+
+    strncpy(keluaran, buffer + idx, ukuran - 1);
+    keluaran[ukuran - 1] = '\0';
+    return 0;
+}
+
+/* DECIMAL: Konversi dari basis lain ke desimal */
+static int fn_decimal(const char *teks, double basis, double *keluaran) {
+    int base = (int)basis;
+    long long result = 0;
+    int i;
+
+    if (!teks || base < 2 || base > 36) return -1;
+
+    for (i = 0; teks[i]; i++) {
+        char c = (char)toupper((unsigned char)teks[i]);
+        int digit;
+
+        if (c >= '0' && c <= '9') {
+            digit = c - '0';
+        } else if (c >= 'A' && c <= 'Z') {
+            digit = c - 'A' + 10;
+        } else {
+            return -1;
+        }
+
+        if (digit >= base) return -1;
+        result = result * base + digit;
+    }
+
+    *keluaran = (double)result;
+    return 0;
+}
+
+/* SQRTPI: Akar kuadrat dari (angka * PI) */
+static int fn_sqrtpi(double arg, double *keluaran) {
+    if (arg < 0.0) return -1;
+    *keluaran = sqrt(arg * 3.14159265358979323846);
+    return 0;
+}
+
+/* PI: Nilai PI */
+static int fn_pi(double *keluaran) {
+    *keluaran = 3.14159265358979323846;
+    return 0;
+}
+
+/* E: Nilai e (Euler) */
+static int fn_e(double *keluaran) {
+    *keluaran = 2.71828182845904523536;
+    return 0;
+}
+
+/* PHI: Nilai phi (golden ratio) */
+static int fn_phi(double *keluaran) {
+    *keluaran = 1.61803398874989484820;
+    return 0;
+}
+
+/* MROUND: Pembulatan ke kelipatan */
+static int fn_mround(double angka, double kelipatan, double *keluaran) {
+    if (kelipatan == 0.0) return -1;
+    *keluaran = round(angka / kelipatan) * kelipatan;
+    return 0;
+}
+
+/* EVEN: Pembulatan ke genap terdekat */
+static int fn_even(double arg, double *keluaran) {
+    int sign = (arg >= 0) ? 1 : -1;
+    double abs_val = fabs(arg);
+    double rounded = ceil(abs_val);
+    if (fmod(rounded, 2.0) != 0.0) {
+        rounded += 1.0;
+    }
+    *keluaran = sign * rounded;
+    return 0;
+}
+
+/* ODD: Pembulatan ke ganjil terdekat */
+static int fn_odd(double arg, double *keluaran) {
+    int sign = (arg >= 0) ? 1 : -1;
+    double abs_val = fabs(arg);
+    double rounded = ceil(abs_val);
+    if (fmod(rounded, 2.0) == 0.0) {
+        rounded += 1.0;
+    }
+    *keluaran = sign * rounded;
+    return 0;
+}
+
+/* ============================================================
  * FUNGSI LOGIKA
  * ============================================================ */
 
@@ -712,6 +1116,22 @@ int hitung_math_1_arg(const char *nama, double arg, double *keluaran) {
         return fn_radians(arg, keluaran);
     }
 
+    /* Fungsi matematika lanjutan 1 argumen */
+    if (banding_str(nama, "FACT") == 0) return fn_fact(arg, keluaran);
+    if (banding_str(nama, "FACTDOUBLE") == 0) return fn_factdouble(arg, keluaran);
+    if (banding_str(nama, "SQRTPI") == 0) return fn_sqrtpi(arg, keluaran);
+    if (banding_str(nama, "EVEN") == 0) return fn_even(arg, keluaran);
+    if (banding_str(nama, "ODD") == 0) return fn_odd(arg, keluaran);
+
+    /* Konstanta matematika */
+    if (banding_str(nama, "PI") == 0) return fn_pi(keluaran);
+    if (banding_str(nama, "E") == 0 || banding_str(nama, "EXPONENT") == 0) {
+        return fn_e(keluaran);
+    }
+    if (banding_str(nama, "PHI") == 0 || banding_str(nama, "GOLDEN") == 0) {
+        return fn_phi(keluaran);
+    }
+
     /* Fungsi tanggal/waktu dengan 1 argumen */
     if (banding_str(nama, "YEAR") == 0) return waktu_fn_year(arg, keluaran);
     if (banding_str(nama, "MONTH") == 0) return waktu_fn_month(arg, keluaran);
@@ -759,6 +1179,23 @@ int hitung_math_2_arg(const char *nama, double arg1, double arg2,
         return fn_quotient(arg1, arg2, keluaran);
     }
     if (banding_str(nama, "ATAN2") == 0) return fn_atan2(arg1, arg2, keluaran);
+
+    /* Fungsi matematika lanjutan 2 argumen */
+    if (banding_str(nama, "COMBIN") == 0 || banding_str(nama, "COMBINA") == 0) {
+        return fn_combin(arg1, arg2, keluaran);
+    }
+    if (banding_str(nama, "PERMUT") == 0 || banding_str(nama, "PERMUTA") == 0) {
+        return fn_permut(arg1, arg2, keluaran);
+    }
+    if (banding_str(nama, "MROUND") == 0) {
+        return fn_mround(arg1, arg2, keluaran);
+    }
+    if (banding_str(nama, "RANDBETWEEN") == 0) {
+        double min_val = arg1 < arg2 ? arg1 : arg2;
+        double max_val = arg1 > arg2 ? arg1 : arg2;
+        *keluaran = min_val + (double)rand() / (double)RAND_MAX * (max_val - min_val);
+        return 0;
+    }
 
     /* Fungsi tanggal dengan 2 argumen */
     if (banding_str(nama, "EDATE") == 0) {
