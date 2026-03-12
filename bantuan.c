@@ -1,17 +1,18 @@
 /* ============================================================
  * TABEL v3.0 
- * Berkas: bantuan.c - Tampilan Bantuan (Split Window dengan File)
+ * Berkas: bantuan.c - Tampilan Bantuan (Integrasi Window Manager)
  * Standar: C89 + POSIX.1-2008
  * Penulis: Chandra Lesmana
  * ============================================================
  * 
  * Fitur:
- * - Split window horizontal dengan buffer sendiri
+ * - Integrasi penuh dengan window manager
+ * - Dapat dinavigasi antar window dengan Ctrl+Alt+Arrow
  * - Top bar dengan format "BANTUAN: | TAB1 | TAB2 | ..."
  * - Status bar dengan path file dan info gulir
  * - Konten dimuat dari file teks (bukan hardcoded)
- * - Navigasi: Arrow (gulir per baris), Shift+Arrow (setengah halaman)
- * - Keluar dengan Alt+Q
+ * - Navigasi: Arrow (gulir/tab), PageUp/PageDown, Home/End
+ * - Keluar dengan Alt+Q atau tutup window dengan Wq
  * ============================================================ */
 
 #include "tabel.h"
@@ -56,11 +57,9 @@ struct state_bantuan_viewer {
     int jumlah_tab;
     int tab_aktif;
     int scroll_y;                       /* Offset gulir vertikal */
-    int cursor_y;                       /* Posisi kursor (untuk persentase) */
     int window_tinggi;                  /* Tinggi area konten */
-    int aktif;                          /* Flag mode bantuan aktif */
     struct jendela *jendela_bantuan;    /* Pointer ke jendela bantuan */
-    int jendela_sebelumnya_idx;         /* Index buffer sebelum bantuan */
+    int initialized;                    /* Flag: sudah inisialisasi */
 };
 
 /* State global */
@@ -229,12 +228,7 @@ static int inisialisasi_tabs_bantuan(void) {
     char path_file[PANJANG_PATH_BANTUAN];
     int jumlah = 0;
     
-    /* Cari direktori bantuan */
-    /* 1. ./bantuan/ (relative to current dir) */
-    /* 2. /usr/share/tabel/bantuan/ (system) */
-    /* 3. ~/tabel/bantuan/ (home) */
-    
-    /* Gunakan path relatif dulu */
+    /* Gunakan path relatif */
     snprintf(path_base, sizeof(path_base), "bantuan");
     
     /* Daftar file bantuan yang mungkin ada */
@@ -279,15 +273,16 @@ static int inisialisasi_tabs_bantuan(void) {
     }
     
     g_bantuan.jumlah_tab = jumlah;
+    g_bantuan.initialized = 1;
     return 0;
 }
 
 /* ============================================================
- * RENDERING BANTUAN
+ * RENDERING BANTUAN (untuk integrasi window manager)
  * ============================================================ */
 
 /* Gambar top bar bantuan dengan tabs */
-static void gambar_topbar_bantuan(struct rect area) {
+static void gambar_topbar_bantuan(struct rect area, int aktif) {
     int y = area.y + 1;
     int x = area.x + 1;
     int i;
@@ -295,12 +290,20 @@ static void gambar_topbar_bantuan(struct rect area) {
     char buf[128];
     int sisa_ruang;
     
-    /* Background topbar - hijau tua */
-    warna_set_buffer(WARNAD_DEFAULT, WARNAL_HIJAU_TUA);
+    /* Background topbar - hijau tua atau lebih gelap jika tidak aktif */
+    if (aktif) {
+        warna_set_buffer(WARNAD_DEFAULT, WARNAL_HIJAU_TUA);
+    } else {
+        warna_set_buffer(WARNAD_GELAP, WARNAL_GELAP);
+    }
     isi_garis_h(area.x + 1, area.x + area.w, y);
     
-    /* Tulis "BANTUAN:" dengan warna putih */
-    warna_set_buffer(WARNAD_PUTIH, WARNAL_HIJAU_TUA);
+    /* Tulis "BANTUAN:" dengan warna */
+    if (aktif) {
+        warna_set_buffer(WARNAD_PUTIH, WARNAL_HIJAU_TUA);
+    } else {
+        warna_set_buffer(WARNAD_ABU, WARNAL_GELAP);
+    }
     taruh_teks(x, y, " BANTUAN:");
     x += 10; /* " BANTUAN:" = 9 chars + 1 space */
     
@@ -313,7 +316,11 @@ static void gambar_topbar_bantuan(struct rect area) {
         if (sisa_ruang < 5) break; /* Minimal 5 karakter untuk tab */
         
         /* Pembatas "|" */
-        warna_set_buffer(WARNAD_GELAP, WARNAL_HIJAU_TUA);
+        if (aktif) {
+            warna_set_buffer(WARNAD_GELAP, WARNAL_HIJAU_TUA);
+        } else {
+            warna_set_buffer(WARNAD_ABU, WARNAL_GELAP);
+        }
         taruh_teks(x, y, " |");
         x += 2;
         
@@ -321,7 +328,7 @@ static void gambar_topbar_bantuan(struct rect area) {
         tab_len = strlen(g_bantuan.tabs[i].nama) + 2; /* +2 untuk spasi */
         if (x + tab_len > area.x + area.w) {
             /* Tab tidak muat, tulis "..." */
-            warna_set_buffer(WARNAD_GELAP, WARNAL_HIJAU_TUA);
+            warna_set_buffer(WARNAD_GELAP, aktif ? WARNAL_HIJAU_TUA : WARNAL_GELAP);
             taruh_teks(x, y, " ...");
             break;
         }
@@ -331,8 +338,12 @@ static void gambar_topbar_bantuan(struct rect area) {
             warna_set_buffer(WARNAD_GELAP, WARNAL_HIJAU);
             snprintf(buf, sizeof(buf), " %s ", g_bantuan.tabs[i].nama);
         } else {
-            /* Tab non-aktif: latar hijau tua, teks abu */
-            warna_set_buffer(WARNAD_ABU, WARNAL_HIJAU_TUA);
+            /* Tab non-aktif */
+            if (aktif) {
+                warna_set_buffer(WARNAD_ABU, WARNAL_HIJAU_TUA);
+            } else {
+                warna_set_buffer(WARNAD_ABU, WARNAL_GELAP);
+            }
             snprintf(buf, sizeof(buf), " %s ", g_bantuan.tabs[i].nama);
         }
         taruh_teks(x, y, buf);
@@ -341,13 +352,17 @@ static void gambar_topbar_bantuan(struct rect area) {
     
     /* Tutup dengan "|" di akhir jika ada tab */
     if (g_bantuan.jumlah_tab > 0 && x < area.x + area.w) {
-        warna_set_buffer(WARNAD_GELAP, WARNAL_HIJAU_TUA);
+        if (aktif) {
+            warna_set_buffer(WARNAD_GELAP, WARNAL_HIJAU_TUA);
+        } else {
+            warna_set_buffer(WARNAD_ABU, WARNAL_GELAP);
+        }
         taruh_teks(x, y, " |");
     }
 }
 
 /* Gambar konten bantuan */
-static void gambar_konten_bantuan(struct rect area) {
+static void gambar_konten_bantuan(struct rect area, int aktif) {
     struct tab_bantuan *tab = &g_bantuan.tabs[g_bantuan.tab_aktif];
     int y_start = area.y + 2; /* Baris pertama konten (setelah topbar) */
     int y_end = area.y + area.h - 1; /* Sebelum status bar */
@@ -369,9 +384,6 @@ static void gambar_konten_bantuan(struct rect area) {
     /* Batasi scroll */
     if (g_bantuan.scroll_y < 0) g_bantuan.scroll_y = 0;
     if (g_bantuan.scroll_y > max_scroll) g_bantuan.scroll_y = max_scroll;
-    
-    /* Update posisi kursor untuk persentase */
-    g_bantuan.cursor_y = g_bantuan.scroll_y;
     
     /* Clear area konten */
     warna_set_buffer(WARNAD_DEFAULT, WARNAL_DEFAULT);
@@ -403,7 +415,7 @@ static void gambar_konten_bantuan(struct rect area) {
 }
 
 /* Gambar status bar bantuan */
-static void gambar_statusbar_bantuan(struct rect area) {
+static void gambar_statusbar_bantuan(struct rect area, int aktif) {
     struct tab_bantuan *tab = &g_bantuan.tabs[g_bantuan.tab_aktif];
     int y = area.y + area.h;
     char kiri[PANJANG_PATH_BANTUAN + 32];
@@ -414,6 +426,8 @@ static void gambar_statusbar_bantuan(struct rect area) {
     
     /* Hitung persentase gulir */
     if (tab->jumlah_baris <= g_bantuan.window_tinggi) {
+        persen = 100;
+    } else if (tab->jumlah_baris - g_bantuan.window_tinggi <= 0) {
         persen = 100;
     } else {
         persen = (g_bantuan.scroll_y * 100) / (tab->jumlah_baris - g_bantuan.window_tinggi);
@@ -429,11 +443,19 @@ static void gambar_statusbar_bantuan(struct rect area) {
              persen, tab->jumlah_baris, tab->kolom_terpanjang, tab->jumlah_kata);
     
     /* Background status bar */
-    warna_set_buffer(WARNAD_DEFAULT, WARNAL_HIJAU_TUA);
+    if (aktif) {
+        warna_set_buffer(WARNAD_DEFAULT, WARNAL_HIJAU_TUA);
+    } else {
+        warna_set_buffer(WARNAD_GELAP, WARNAL_GELAP);
+    }
     isi_garis_h(area.x + 1, area.x + area.w, y);
     
     /* Tulis kiri */
-    warna_set_buffer(WARNAD_PUTIH, WARNAL_HIJAU_TUA);
+    if (aktif) {
+        warna_set_buffer(WARNAD_PUTIH, WARNAL_HIJAU_TUA);
+    } else {
+        warna_set_buffer(WARNAD_ABU, WARNAL_GELAP);
+    }
     taruh_teks(area.x + 1, y, kiri);
     
     /* Tulis kanan */
@@ -441,34 +463,46 @@ static void gambar_statusbar_bantuan(struct rect area) {
     awal_kanan = area.x + area.w - panjang_kanan;
     if (awal_kanan < area.x + 1) awal_kanan = area.x + 1;
     
-    warna_set_buffer(WARNAD_GELAP, WARNAL_HIJAU);
+    if (aktif) {
+        warna_set_buffer(WARNAD_GELAP, WARNAL_HIJAU);
+    } else {
+        warna_set_buffer(WARNAD_ABU, WARNAL_GELAP);
+    }
     taruh_teks(awal_kanan, y, kanan);
 }
 
-/* Render penuh window bantuan */
-static void render_bantuan_window(struct rect area) {
+/* Render konten bantuan ke area tertentu (dipanggil dari window manager) */
+void render_konten_bantuan(struct rect area, int aktif) {
     /* Clear area */
+    int y;
     warna_set_buffer(WARNAD_DEFAULT, WARNAL_DEFAULT);
-    for (int y = area.y + 1; y <= area.y + area.h; y++) {
+    for (y = area.y + 1; y <= area.y + area.h; y++) {
         isi_garis_h(area.x + 1, area.x + area.w, y);
     }
     
     /* Gambar komponen */
-    gambar_topbar_bantuan(area);
-    gambar_konten_bantuan(area);
-    gambar_statusbar_bantuan(area);
+    gambar_topbar_bantuan(area, aktif);
+    gambar_konten_bantuan(area, aktif);
+    gambar_statusbar_bantuan(area, aktif);
 }
 
 /* ============================================================
- * INPUT HANDLER BANTUAN
+ * INPUT HANDLER BANTUAN (untuk integrasi window manager)
  * ============================================================ */
 
-/* Proses input untuk mode bantuan */
-/* Return: 0 = lanjut, 1 = keluar */
-static int proses_input_bantuan(int ch, unsigned char *seq, int seq_len) {
-    struct tab_bantuan *tab = &g_bantuan.tabs[g_bantuan.tab_aktif];
+/* Proses input untuk jendela bantuan */
+/* Return: 1 jika input ditangani, 0 jika tidak */
+int proses_input_bantuan_window(int ch, unsigned char *seq, int seq_len) {
+    struct tab_bantuan *tab;
     int max_scroll;
     int half_page;
+    
+    /* Pastikan ada tab */
+    if (g_bantuan.jumlah_tab == 0) {
+        return 0;
+    }
+    
+    tab = &g_bantuan.tabs[g_bantuan.tab_aktif];
     
     half_page = g_bantuan.window_tinggi / 2;
     if (half_page < 1) half_page = 1;
@@ -476,89 +510,116 @@ static int proses_input_bantuan(int ch, unsigned char *seq, int seq_len) {
     max_scroll = tab->jumlah_baris - g_bantuan.window_tinggi;
     if (max_scroll < 0) max_scroll = 0;
     
-    /* Alt+Q untuk keluar (ESC + q atau 0xC3 0xB1 untuk Alt+q dalam UTF-8) */
-    /* Dalam terminal, Alt+q biasanya dikirim sebagai ESC q atau 0x1B 0x71 */
-    
-    /* Cek escape sequence */
-    if (ch == 0x1B) {
-        /* Escape - mungkin Alt+kombinasi atau Escape biasa */
-        if (seq_len >= 1) {
-            /* Ada karakter setelah ESC */
-            if (seq[0] == 'q' || seq[0] == 'Q') {
-                /* Alt+Q - tutup bantuan */
-                return 1;
-            }
+    /* Alt+Q untuk keluar (ESC + q/Q) */
+    if (ch == 0x1B && seq_len >= 1) {
+        if (seq[0] == 'q' || seq[0] == 'Q') {
+            /* Alt+Q - tutup jendela bantuan */
+            tutup_bantuan();
+            return 1;
         }
-        /* Escape saja - juga keluar */
-        return 1;
+        /* Escape sequence lain (seperti arrow keys) - jangan keluar! */
+        /* Lanjutkan untuk diproses di bawah */
     }
     
-    /* Keyboard handling */
+    /* Escape saja - jangan keluar, biarkan window manager handle */
+    if (ch == 0x1B && seq_len == 0) {
+        return 0; /* Biarkan window manager yang menangani */
+    }
+    
+    /* Arrow keys: ESC [ A/B/C/D */
+    if (ch == 0x1B && seq_len >= 2 && seq[0] == '[') {
+        switch (seq[1]) {
+            case 'A': /* Up - gulir ke atas */
+                if (g_bantuan.scroll_y > 0) {
+                    g_bantuan.scroll_y--;
+                }
+                return 1;
+                
+            case 'B': /* Down - gulir ke bawah */
+                if (g_bantuan.scroll_y < max_scroll) {
+                    g_bantuan.scroll_y++;
+                }
+                return 1;
+                
+            case 'C': /* Right - tab berikutnya */
+                if (g_bantuan.tab_aktif < g_bantuan.jumlah_tab - 1) {
+                    g_bantuan.tab_aktif++;
+                    g_bantuan.scroll_y = 0;
+                }
+                return 1;
+                
+            case 'D': /* Left - tab sebelumnya */
+                if (g_bantuan.tab_aktif > 0) {
+                    g_bantuan.tab_aktif--;
+                    g_bantuan.scroll_y = 0;
+                }
+                return 1;
+        }
+    }
+    
+    /* vim-style navigation */
     switch (ch) {
-        case 'q':
-        case 'Q':
-            /* q biasa - tidak melakukan apa-apa di mode bantuan */
-            /* Hanya Alt+Q yang bisa keluar */
-            break;
-            
-        case K_UP:
         case 'k':
             /* Gulir ke atas 1 baris */
             if (g_bantuan.scroll_y > 0) {
                 g_bantuan.scroll_y--;
             }
-            break;
+            return 1;
             
-        case K_DOWN:
         case 'j':
             /* Gulir ke bawah 1 baris */
             if (g_bantuan.scroll_y < max_scroll) {
                 g_bantuan.scroll_y++;
             }
-            break;
+            return 1;
             
-        case K_LEFT:
         case 'h':
             /* Tab sebelumnya */
             if (g_bantuan.tab_aktif > 0) {
                 g_bantuan.tab_aktif--;
                 g_bantuan.scroll_y = 0;
             }
-            break;
+            return 1;
             
-        case K_RIGHT:
         case 'l':
             /* Tab berikutnya */
             if (g_bantuan.tab_aktif < g_bantuan.jumlah_tab - 1) {
                 g_bantuan.tab_aktif++;
                 g_bantuan.scroll_y = 0;
             }
-            break;
-            
-        case K_PAGEUP:
-            /* Gulir satu halaman ke atas */
-            g_bantuan.scroll_y -= g_bantuan.window_tinggi;
-            if (g_bantuan.scroll_y < 0) g_bantuan.scroll_y = 0;
-            break;
-            
-        case K_PAGEDOWN:
-            /* Gulir satu halaman ke bawah */
-            g_bantuan.scroll_y += g_bantuan.window_tinggi;
-            if (g_bantuan.scroll_y > max_scroll) g_bantuan.scroll_y = max_scroll;
-            break;
-            
-        case K_HOME:
-            /* Gulir ke awal */
-            g_bantuan.scroll_y = 0;
-            break;
-            
-        case K_END:
-            /* Gulir ke akhir */
-            g_bantuan.scroll_y = max_scroll;
-            break;
+            return 1;
     }
     
-    /* Shift+Arrow (escape sequence [1;2A/B) */
+    /* PageUp/PageDown */
+    /* ESC [ 5 ~ atau ESC [ 6 ~ */
+    if (ch == 0x1B && seq_len >= 3 && seq[0] == '[' && seq[2] == '~') {
+        switch (seq[1]) {
+            case '5': /* PageUp */
+                g_bantuan.scroll_y -= g_bantuan.window_tinggi;
+                if (g_bantuan.scroll_y < 0) g_bantuan.scroll_y = 0;
+                return 1;
+                
+            case '6': /* PageDown */
+                g_bantuan.scroll_y += g_bantuan.window_tinggi;
+                if (g_bantuan.scroll_y > max_scroll) g_bantuan.scroll_y = max_scroll;
+                return 1;
+        }
+    }
+    
+    /* Home/End: ESC [ H atau ESC [ F */
+    if (ch == 0x1B && seq_len >= 2 && seq[0] == '[') {
+        switch (seq[1]) {
+            case 'H': /* Home - gulir ke awal */
+                g_bantuan.scroll_y = 0;
+                return 1;
+                
+            case 'F': /* End - gulir ke akhir */
+                g_bantuan.scroll_y = max_scroll;
+                return 1;
+        }
+    }
+    
+    /* Shift+Arrow: ESC [ 1 ; 2 A/B */
     if (ch == 0x1B && seq_len >= 4 && seq[0] == '[' && seq[1] == '1' && 
         seq[2] == ';' && seq[3] == '2') {
         if (seq_len >= 5) {
@@ -566,15 +627,17 @@ static int proses_input_bantuan(int ch, unsigned char *seq, int seq_len) {
                 case 'A': /* Shift+Up - gulir setengah halaman ke atas */
                     g_bantuan.scroll_y -= half_page;
                     if (g_bantuan.scroll_y < 0) g_bantuan.scroll_y = 0;
-                    break;
+                    return 1;
+                    
                 case 'B': /* Shift+Down - gulir setengah halaman ke bawah */
                     g_bantuan.scroll_y += half_page;
                     if (g_bantuan.scroll_y > max_scroll) g_bantuan.scroll_y = max_scroll;
-                    break;
+                    return 1;
             }
         }
     }
     
+    /* Input tidak ditangani - kembalikan ke window manager */
     return 0;
 }
 
@@ -582,40 +645,103 @@ static int proses_input_bantuan(int ch, unsigned char *seq, int seq_len) {
  * FUNGSI UTAMA BANTUAN
  * ============================================================ */
 
-/* Cek apakah mode bantuan aktif */
+/* Inisialisasi konten bantuan */
+int inisialisasi_konten_bantuan(void) {
+    if (g_bantuan.initialized) {
+        return 0;
+    }
+    return inisialisasi_tabs_bantuan();
+}
+
+/* Cek apakah jendela bantuan ada */
 int bantuan_aktif(void) {
-    return g_bantuan.aktif;
+    return (g_bantuan.jendela_bantuan != NULL);
+}
+
+/* Dapatkan pointer ke jendela bantuan */
+struct jendela *dapatkan_jendela_bantuan(void) {
+    return g_bantuan.jendela_bantuan;
 }
 
 /* Tutup bantuan */
 void tutup_bantuan(void) {
-    if (!g_bantuan.aktif) return;
+    if (!g_bantuan.jendela_bantuan) return;
     
-    /* Tutup jendela bantuan jika ada */
-    if (g_bantuan.jendela_bantuan) {
-        /* Restore jendela aktif sebelumnya */
-        /* Jendela bantuan akan ditutup oleh sistem window manager */
-        g_bantuan.jendela_bantuan = NULL;
+    /* Jika jendela aktif adalah bantuan, pindahkan fokus dulu */
+    if (jendela_aktif == g_bantuan.jendela_bantuan) {
+        /* Cari jendela lain untuk fokus */
+        if (g_bantuan.jendela_bantuan->parent) {
+            struct jendela *sibling = 
+                (g_bantuan.jendela_bantuan->parent->child1 == g_bantuan.jendela_bantuan) ?
+                g_bantuan.jendela_bantuan->parent->child2 :
+                g_bantuan.jendela_bantuan->parent->child1;
+            
+            if (sibling) {
+                /* Cari leaf terdalam */
+                while (sibling->jenis != JENIS_DAUN) {
+                    sibling = sibling->child1;
+                }
+                jendela_aktif = sibling;
+            }
+        }
     }
     
-    g_bantuan.aktif = 0;
+    /* Hapus jendela bantuan dari tree */
+    if (g_bantuan.jendela_bantuan->parent) {
+        struct jendela *parent = g_bantuan.jendela_bantuan->parent;
+        struct jendela *sibling = (parent->child1 == g_bantuan.jendela_bantuan) ?
+            parent->child2 : parent->child1;
+        struct jendela *grandparent = parent->parent;
+        
+        /* Hubungkan sibling ke grandparent */
+        sibling->parent = grandparent;
+        if (grandparent) {
+            if (grandparent->child1 == parent) {
+                grandparent->child1 = sibling;
+            } else {
+                grandparent->child2 = sibling;
+            }
+        } else {
+            jendela_root = sibling;
+        }
+        
+        free(g_bantuan.jendela_bantuan);
+        free(parent);
+    } else {
+        /* Jendela bantuan adalah root - tidak seharusnya terjadi */
+        free(g_bantuan.jendela_bantuan);
+        jendela_root = NULL;
+    }
+    
+    g_bantuan.jendela_bantuan = NULL;
     
     /* Trigger layout recalc */
     paksa_recalc_layout();
+    
+    snprintf(pesan_status, sizeof(pesan_status), "Bantuan ditutup");
 }
 
-/* Tampilkan bantuan dengan split window */
+/* Toggle bantuan - buka/tutup */
+void toggle_bantuan(void) {
+    if (g_bantuan.jendela_bantuan) {
+        /* Tutup bantuan */
+        tutup_bantuan();
+    } else {
+        /* Buka bantuan */
+        tampilkan_bantuan();
+    }
+}
+
+/* Tampilkan bantuan dengan split window horizontal */
 void tampilkan_bantuan(void) {
-    unsigned char buf[16];
-    int len;
-    int selesai = 0;
-    struct rect area_bantuan;
+    struct jendela *parent_baru;
+    struct jendela *jendela_bantuan_baru;
     
-    /* Jika sudah aktif, jangan buka lagi */
-    if (g_bantuan.aktif) return;
+    /* Jika sudah ada, jangan buka lagi */
+    if (g_bantuan.jendela_bantuan) return;
     
     /* Inisialisasi tabs jika belum */
-    if (g_bantuan.jumlah_tab == 0) {
+    if (!g_bantuan.initialized) {
         if (inisialisasi_tabs_bantuan() != 0) {
             /* Fallback ke bantuan sederhana */
             tampilkan_bantuan_sederhana();
@@ -623,65 +749,73 @@ void tampilkan_bantuan(void) {
         }
     }
     
+    /* Pastikan ada jendela root */
+    if (!jendela_root) {
+        tampilkan_bantuan_sederhana();
+        return;
+    }
+    
     /* Reset state */
     g_bantuan.scroll_y = 0;
     g_bantuan.tab_aktif = 0;
-    g_bantuan.aktif = 1;
     
-    /* Set area bantuan (bottom half of screen) */
-    area_bantuan.x = 0;
-    area_bantuan.y = tinggi_layar / 2;
-    area_bantuan.w = lebar_layar;
-    area_bantuan.h = tinggi_layar - area_bantuan.y;
-    
-    atur_mode_terminal(1);
-    
-    /* Loop utama bantuan */
-    while (!selesai && g_bantuan.aktif) {
-        /* Render bantuan */
-        render_bantuan_window(area_bantuan);
-        
-        /* Flush ke layar */
-        terapkan_delta();
-        flush_stdout();
-        
-        /* Baca input */
-        len = 0;
-        if (read(STDIN_FILENO, buf, 1) > 0) {
-            int ch = buf[0];
-            
-            /* Baca escape sequence jika ada */
-            if (ch == 0x1B) {
-                /* Non-blocking read untuk karakter berikutnya */
-                atur_mode_terminal(0);
-                if (read(STDIN_FILENO, buf + 1, 5) > 0) {
-                    len = 1; /* Ada escape sequence */
-                }
-                atur_mode_terminal(1);
-            }
-            
-            /* Proses input */
-            selesai = proses_input_bantuan(ch, buf + 1, len);
-        }
+    /* Buat split horizontal baru */
+    /* Simpan state jendela aktif */
+    if (jendela_aktif) {
+        simpan_state_jendela(jendela_aktif);
     }
     
-    g_bantuan.aktif = 0;
-    
-    /* Bersihkan buffer input */
-    atur_mode_terminal(0);
-    while (read(STDIN_FILENO, buf, 1) > 0);
-    atur_mode_terminal(1);
-}
-
-/* Toggle bantuan - buka/tutup */
-void toggle_bantuan(void) {
-    if (g_bantuan.aktif) {
-        /* Tutup bantuan */
-        tutup_bantuan();
-    } else {
-        /* Buka bantuan */
-        tampilkan_bantuan();
+    /* Alokasi parent baru */
+    parent_baru = calloc(1, sizeof(struct jendela));
+    if (!parent_baru) {
+        tampilkan_bantuan_sederhana();
+        return;
     }
+    
+    /* Alokasi jendela bantuan */
+    jendela_bantuan_baru = calloc(1, sizeof(struct jendela));
+    if (!jendela_bantuan_baru) {
+        free(parent_baru);
+        tampilkan_bantuan_sederhana();
+        return;
+    }
+    
+    /* Setup jendela bantuan */
+    jendela_bantuan_baru->jenis = JENIS_DAUN;
+    jendela_bantuan_baru->buffer_idx = -1; /* Tidak terkait buffer */
+    jendela_bantuan_baru->parent = parent_baru;
+    jendela_bantuan_baru->child1 = NULL;
+    jendela_bantuan_baru->child2 = NULL;
+    jendela_bantuan_baru->adalah_bantuan = 1;
+    jendela_bantuan_baru->view.aktif_x = 0;
+    jendela_bantuan_baru->view.aktif_y = 0;
+    jendela_bantuan_baru->view.lihat_kolom = 0;
+    jendela_bantuan_baru->view.lihat_baris = 0;
+    
+    /* Setup parent split */
+    parent_baru->jenis = JENIS_SPLIT_H;
+    parent_baru->ratio = tinggi_layar / 2; /* Split di tengah */
+    parent_baru->parent = jendela_root->parent;
+    parent_baru->child1 = jendela_root;  /* Window lama di atas */
+    parent_baru->child2 = jendela_bantuan_baru; /* Bantuan di bawah */
+    
+    /* Update parent jendela root */
+    jendela_root->parent = parent_baru;
+    
+    /* Set root ke parent baru */
+    jendela_root = parent_baru;
+    
+    /* Simpan referensi */
+    g_bantuan.jendela_bantuan = jendela_bantuan_baru;
+    
+    /* Set fokus ke bantuan */
+    jendela_aktif = jendela_bantuan_baru;
+    
+    /* Trigger layout recalc */
+    paksa_recalc_layout();
+    
+    snprintf(pesan_status, sizeof(pesan_status), 
+             "Bantuan: Gunakan panah untuk navigasi, Alt+Q untuk tutup");
 }
 
 /* Versi sederhana bantuan (fallback) */
@@ -706,13 +840,14 @@ void tampilkan_bantuan_sederhana(void) {
         "  m / M        : Merge / Unmerge",
         "",
         "Window Manager:",
-        "  Alt+s        : Split Horizontal",
-        "  Alt+v        : Split Vertikal",
-        "  Alt+q        : Tutup Window",
+        "  Ws           : Split Horizontal",
+        "  Wv           : Split Vertikal",
+        "  Wq           : Tutup Window",
+        "  Ctrl+Alt+Panah: Pindah fokus",
         "",
         "Bantuan:",
         "  ?            : Tampilkan bantuan",
-        "  Alt+q        : Keluar dari bantuan",
+        "  Alt+Q        : Keluar dari bantuan",
         "",
         "Keluar:",
         "  q            : Keluar aplikasi",
@@ -721,6 +856,9 @@ void tampilkan_bantuan_sederhana(void) {
     int i;
     unsigned char buang;
     int y_start = 2;
+    unsigned char seq[8];
+    int seq_len;
+    int ch;
 
     /* Clear screen area */
     warna_set_buffer(WARNAD_DEFAULT, WARNAL_DEFAULT);
@@ -744,16 +882,41 @@ void tampilkan_bantuan_sederhana(void) {
     warna_set_buffer(WARNAD_PUTIH, WARNAL_HIJAU_TUA);
     isi_garis_h(1, lebar_layar, tinggi_layar);
     taruh_teks(2, tinggi_layar, 
-               " Tekan Alt+q atau Escape untuk keluar dari bantuan ");
+               " Tekan Alt+Q atau Escape untuk keluar dari bantuan ");
 
     terapkan_delta();
+    flush_stdout();
     
     /* Tunggu input */
     atur_mode_terminal(1);
-    while (read(STDIN_FILENO, &buang, 1) <= 0);
+    while (1) {
+        if (read(STDIN_FILENO, &ch, 1) > 0) {
+            seq_len = 0;
+            
+            /* Baca escape sequence jika ada */
+            if (ch == 0x1B) {
+                atur_mode_terminal(0);
+                if (read(STDIN_FILENO, seq, 5) > 0) {
+                    seq_len = 1;
+                    /* Cek Alt+Q */
+                    if (seq[0] == 'q' || seq[0] == 'Q') {
+                        atur_mode_terminal(1);
+                        break;
+                    }
+                }
+                atur_mode_terminal(1);
+                /* Escape saja juga keluar */
+                if (seq_len == 0) {
+                    break;
+                }
+            }
+        }
+    }
 
     /* Bersihkan buffer */
+    atur_mode_terminal(0);
     while (read(STDIN_FILENO, &buang, 1) > 0);
+    atur_mode_terminal(1);
 }
 
 /* Cleanup */
@@ -763,5 +926,6 @@ void bersihkan_bantuan(void) {
         bebas_konten_tab(&g_bantuan.tabs[i]);
     }
     g_bantuan.jumlah_tab = 0;
-    g_bantuan.aktif = 0;
+    g_bantuan.initialized = 0;
+    g_bantuan.jendela_bantuan = NULL;
 }

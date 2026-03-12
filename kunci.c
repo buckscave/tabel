@@ -1660,6 +1660,16 @@ void mulai_aplikasi_poll(struct buffer_tabel *buf_awal) {
         half_scroll = scroll_amount / 2;
         if (half_scroll < 1) half_scroll = 1;
 
+        /* --- Penangan Jendela Bantuan --- */
+        /* Cek apakah jendela aktif adalah bantuan */
+        if (jendela_aktif && jendela_aktif->adalah_bantuan) {
+            /* Proses input untuk bantuan */
+            if (proses_input_bantuan_window(c, buf_kunci + 1, panjang_kunci - 1)) {
+                continue;
+            }
+            /* Jika tidak ditangani, biarkan jatuh ke bawah untuk navigasi window */
+        }
+
         /* --- Penangan Prefix Commands --- */
         /* Cek apakah ada prefix aktif dan proses */
         if (prefix_window || prefix_delete || prefix_clean ||

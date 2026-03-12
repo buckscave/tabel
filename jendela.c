@@ -26,6 +26,7 @@ struct jendela *buat_jendela_baru(int buffer_idx) {
     j->parent = NULL;
     j->child1 = NULL;
     j->child2 = NULL;
+    j->adalah_bantuan = 0; /* Default: bukan jendela bantuan */
     
     /* Default view state */
     j->view.aktif_x = 0;
@@ -370,44 +371,54 @@ void pindah_fokus_jendela(int arah_kunci) {
 extern void render_jendela_spesifik(const struct buffer_tabel *buf, 
         struct rect area, int is_active);
 
+/* Fungsi eksternal dari bantuan.c untuk render konten bantuan */
+extern void render_konten_bantuan(struct rect area, int aktif);
+
 void render_tree_jendela(struct jendela *node) {
     if (!node) {
         return;
     }
 
     if (node->jenis == JENIS_DAUN) {
-        struct buffer_tabel *b = buffers[node->buffer_idx];
-        int old_ax, old_ay, old_lx, old_ly;
+        /* Cek apakah ini jendela bantuan */
+        if (node->adalah_bantuan) {
+            /* Render konten bantuan */
+            render_konten_bantuan(node->rect, node == jendela_aktif);
+        } else {
+            /* Render jendela buffer biasa */
+            struct buffer_tabel *b = buffers[node->buffer_idx];
+            int old_ax, old_ay, old_lx, old_ly;
 
-        /* Backup state buffer */
-        old_ax = b->cfg.aktif_x; 
-        old_ay = b->cfg.aktif_y;
-        old_lx = b->cfg.lihat_kolom; 
-        old_ly = b->cfg.lihat_baris;
+            /* Backup state buffer */
+            old_ax = b->cfg.aktif_x; 
+            old_ay = b->cfg.aktif_y;
+            old_lx = b->cfg.lihat_kolom; 
+            old_ly = b->cfg.lihat_baris;
 
-        /* Inject state window HANYA jika bukan jendela aktif.*/
-        if (node != jendela_aktif) {
-            b->cfg.aktif_x     = node->view.aktif_x;
-            b->cfg.aktif_y     = node->view.aktif_y;
-            b->cfg.lihat_kolom = node->view.lihat_kolom;
-            b->cfg.lihat_baris = node->view.lihat_baris;
-        }
+            /* Inject state window HANYA jika bukan jendela aktif.*/
+            if (node != jendela_aktif) {
+                b->cfg.aktif_x     = node->view.aktif_x;
+                b->cfg.aktif_y     = node->view.aktif_y;
+                b->cfg.lihat_kolom = node->view.lihat_kolom;
+                b->cfg.lihat_baris = node->view.lihat_baris;
+            }
 
-        /* Render isi window */
-        render_jendela_spesifik(b, node->rect, node == jendela_aktif);
+            /* Render isi window */
+            render_jendela_spesifik(b, node->rect, node == jendela_aktif);
 
-        /* Sinkronkan kembali ke view */
-        node->view.aktif_x     = b->cfg.aktif_x;
-        node->view.aktif_y     = b->cfg.aktif_y;
-        node->view.lihat_kolom = b->cfg.lihat_kolom;
-        node->view.lihat_baris = b->cfg.lihat_baris;
+            /* Sinkronkan kembali ke view */
+            node->view.aktif_x     = b->cfg.aktif_x;
+            node->view.aktif_y     = b->cfg.aktif_y;
+            node->view.lihat_kolom = b->cfg.lihat_kolom;
+            node->view.lihat_baris = b->cfg.lihat_baris;
 
-        /* Restore buffer jika bukan aktif */
-        if (node != jendela_aktif) {
-            b->cfg.aktif_x     = old_ax;
-            b->cfg.aktif_y     = old_ay;
-            b->cfg.lihat_kolom = old_lx;
-            b->cfg.lihat_baris = old_ly;
+            /* Restore buffer jika bukan aktif */
+            if (node != jendela_aktif) {
+                b->cfg.aktif_x     = old_ax;
+                b->cfg.aktif_y     = old_ay;
+                b->cfg.lihat_kolom = old_lx;
+                b->cfg.lihat_baris = old_ly;
+            }
         }
     } else {
         int i;
