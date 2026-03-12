@@ -1,0 +1,55 @@
+================================================================================
+                        SELEKSI & OPERASI - TABEL v3.0
+================================================================================
+
+MODE SELEKSI
+------------
+  v                            : Mode seleksi visual (blok)
+  V                            : Seleksi ke target (input alamat)
+  Alt + v                      : Seleksi kolom penuh
+  Ctrl + v                     : Seleksi baris penuh
+  Escape                       : Batalkan seleksi
+
+SELEKSI MANUAL
+--------------
+  1. Tekan 'v' untuk masuk mode visual
+  2. Gunakan panah untuk memperluas seleksi
+  3. Tekan Enter untuk konfirmasi
+  4. Tekan Escape untuk membatalkan
+
+SELEKSI KE TARGET
+-----------------
+  V [alamat]                   : Seleksi dari kursor ke alamat
+  Contoh: V Z100              : Seleksi dari kursor sampai Z100
+
+OPERASI CLIPBOARD
+-----------------
+  y                            : Salin (yank) area terpilih
+  x                            : Potong (cut) area terpilih
+  p                            : Tempel (paste) di posisi kursor
+  P                            : Isi area dengan clipboard (fill paste)
+
+CLIPBOARD BARIS/KOLOM PENUH
+---------------------------
+  Alt + y                      : Salin kolom penuh
+  Alt + x                      : Potong kolom penuh
+  Ctrl + y                     : Salin baris penuh
+  Ctrl + x                     : Potong baris penuh
+  Alt + p                      : Tempel sebelum baris/kolom aktif
+  Ctrl + p                     : Tempel sesudah baris/kolom aktif
+
+GABUNG SEL (MERGE)
+------------------
+  m                            : Gabung sel dalam seleksi
+  M                            : Urai sel yang tergabung
+
+HAPUS ISI
+---------
+  Backspace                    : Hapus isi sel/area terpilih
+  Delete                       : Hapus isi sel/area terpilih
+  d + d                        : Hapus kolom (tekan d 2x)
+  d + r                        : Hapus baris aktif
+
+================================================================================
+                        Tekan Alt+q untuk menutup bantuan
+================================================================================

@@ -1,0 +1,45 @@
+================================================================================
+                        NAVIGASI TABEL v3.0
+================================================================================
+
+NAVIGASI SEL
+------------
+  Panah Atas/Bawah/Kiri/Kanan  : Pindah antar sel satu per satu
+  Tab                          : Maju ke sel berikutnya (kanan/bawah)
+  Shift+Tab                    : Mundur ke sel sebelumnya (kiri/atas)
+  Home                         : Lompat ke kolom pertama baris ini
+  End                          : Lompat ke kolom terakhir baris ini
+  Page Up                      : Gulir ke atas satu halaman
+  Page Down                    : Gulir ke bawah satu halaman
+  g [alamat]                   : Lompat ke alamat sel (contoh: g A1, g Z100)
+
+NAVIGASI WINDOW
+---------------
+  Alt + Panah                  : Pindah fokus antar window
+  Alt + Shift + Panah          : Resize window aktif
+
+MANAJEMEN WINDOW
+----------------
+  W s                          : Split horizontal (atas/bawah)
+  W v                          : Split vertikal (kiri/kanan)
+  W r                          : Toggle/rotate orientasi split
+  Alt + q                      : Tutup window aktif
+  Alt + r                      : Rotate orientasi split
+
+TAB BUFFER
+----------
+  t                            : Buka tab/buffer baru
+  T                            : Tutup tab aktif
+  [                            : Pindah ke tab sebelumnya
+  ]                            : Pindah ke tab berikutnya
+
+LOMPAT CEPAT
+------------
+  gg                           : Lompat ke sel pertama (A1)
+  G                            : Lompat ke baris terakhir
+  Ctrl + Home                  : Lompat ke baris pertama
+  Ctrl + End                   : Lompat ke baris terakhir
+
+================================================================================
+                        Tekan Alt+q untuk menutup bantuan
+================================================================================

@@ -1,0 +1,56 @@
+SIMPAN & BUKA
+=============
+
+SIMPAN FILE
+-----------
+  w                            : Simpan file
+  Ctrl+w                       : Simpan sebagai (save as)
+
+BUKA FILE
+---------
+  e                            : Buka file baru
+
+FORMAT YANG DIDUKUNG
+===================
+
+FORMAT TABEL NATIVE
+-------------------
+  .tbl                         : Format native TABEL
+                               : Menyimpan semua fitur
+
+FORMAT SPREADSHEET
+------------------
+  .xlsx                        : Microsoft Excel 2007+
+  .xls                         : Microsoft Excel 97-2003
+  .ods                         : OpenDocument Spreadsheet (LibreOffice)
+
+FORMAT TEKS
+-----------
+  .csv                         : Comma Separated Values
+  .tsv                         : Tab Separated Values
+  .txt                         : Plain text
+
+FORMAT WEB & DATA
+-----------------
+  .json                        : JavaScript Object Notation
+  .html                        : HTML Table
+  .md                          : Markdown table
+
+FORMAT LAINNYA
+--------------
+  .pdf                         : Export ke PDF
+  .sql                         : SQL statements
+  .db                          : Binary database
+
+UNDO/REDO
+=========
+
+  u                            : Undo (batalkan aksi terakhir)
+  r                            : Redo (ulang aksi yang di-undo)
+
+TIPS FILE
+---------
+- Simpan secara berkala dengan w
+- Gunakan format .tbl untuk menyimpan semua fitur
+- .xlsx untuk kompatibilitas dengan Excel
+- .csv untuk data sederhana

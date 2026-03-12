@@ -1,0 +1,50 @@
+================================================================================
+                        EDIT TEKS - TABEL v3.0
+================================================================================
+
+MODE EDIT
+---------
+  Enter                        : Masuk mode edit pada sel aktif
+  Escape                       : Batalkan edit dan kembali
+  Backspace                    : Hapus karakter di kiri kursor
+  Delete                       : Hapus karakter di kanan kursor
+  Insert                       : Toggle mode insert/overwrite
+
+NAVIGASI DALAM EDIT
+-------------------
+  Panah Kiri/Kanan             : Pindah kursor dalam teks
+  Home                         : Kursor ke awal teks
+  End                          : Kursor ke akhir teks
+  Ctrl + A                     : Pilih semua teks
+  Ctrl + Kiri                  : Lompat satu kata ke kiri
+  Ctrl + Kanan                 : Lompat satu kata ke kanan
+
+OPERASI TEKS
+------------
+  Ctrl + C                     : Salin teks terpilih
+  Ctrl + X                     : Potong teks terpilih
+  Ctrl + V                     : Tempel dari clipboard
+  Ctrl + Z                     : Undo dalam edit
+  Ctrl + Y                     : Redo dalam edit
+
+PERATAAN TEKS
+-------------
+  [                            : Rata kiri
+  ]                            : Rata kanan
+  \                            : Rata tengah
+
+KONVERSI HURUF
+--------------
+  U                            : Ubah ke HURUF BESAR (UPPERCASE)
+  L                            : Ubah ke huruf kecil (lowercase)
+  E                            : Ubah ke Judul Case (Title Case)
+
+MULTI-EDIT
+----------
+  Shift + Enter                : Edit berantai (lanjut ke baris bawah)
+  Tab                          : Edit berantai (lanjut ke kolom kanan)
+  Shift + Tab                  : Edit berantai (mundur ke kolom kiri)
+
+================================================================================
+                        Tekan Alt+q untuk menutup bantuan
+================================================================================

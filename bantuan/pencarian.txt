@@ -1,0 +1,39 @@
+PENCARIAN
+=========
+
+MULAI PENCARIAN
+---------------
+  /                            : Buka dialog pencarian
+
+NAVIGASI HASIL
+--------------
+  n                            : Ke hasil berikutnya
+  N                            : Ke hasilil sebelumnya
+
+PENGGANTIAN
+===========
+
+GANTI TEKS
+----------
+  \ [cari] [ganti]             : Cari dan ganti teks
+                               : Contoh: \lama baru
+
+SORTIR
+======
+
+SORTIR KOLOM
+------------
+  s                            : Sortir kolom aktif (ascending)
+  S                            : Sortir kolom aktif (descending)
+
+TIPS PENCARIAN
+--------------
+- Pencarian bersifat case-insensitive
+- n dan N untuk navigasi cepat antar hasil
+- Gunakan sortir untuk mengorganisir data
+
+FILTER
+======
+Mode seleksi dapat digunakan untuk filter manual:
+1. Pilih area dengan v atau V
+2. Operasi hanya berlaku pada area terpilih

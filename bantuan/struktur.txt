@@ -1,0 +1,85 @@
+================================================================================
+                    DAFTAR LENGKAP SHORTCUT - TABEL v3.0
+================================================================================
+
+KELUAR APLIKASI
+---------------
+  q                            : Keluar aplikasi
+  Q                            : Keluar tanpa menyimpan
+
+BANTUAN
+-------
+  ?                            : Tampilkan bantuan
+  Alt + h                      : Buka bantuan (split)
+
+FILE
+----
+  w                            : Simpan file
+  e                            : Buka file baru
+  u                            : Undo
+  r                            : Redo
+
+EDIT
+----
+  Enter                        : Edit sel
+  =                            : Input formula
+  Backspace                    : Hapus isi sel
+  Delete                       : Hapus isi sel
+
+PERATAAN
+--------
+  [                            : Rata kiri
+  ]                            : Rata kanan
+  \                            : Rata tengah
+
+NAVIGASI
+--------
+  Panah                        : Pindah sel
+  Tab                          : Maju
+  Shift+Tab                    : Mundur
+  g [alamat]                   : Lompat ke alamat
+  gg                           : Ke awal (A1)
+  G                            : Ke baris terakhir
+
+SELEKSI
+-------
+  v                            : Mode visual
+  V                            : Seleksi ke target
+  y                            : Salin (yank)
+  x                            : Potong (cut)
+  p                            : Tempel (paste)
+  P                            : Fill paste
+
+STRUKTUR
+--------
+  i                            : Sisip kolom setelah
+  I                            : Sisip kolom sebelum
+  o                            : Sisip baris setelah
+  O                            : Sisip baris sebelum
+
+TAB/BUFFER
+----------
+  t                            : Tab baru
+  T                            : Tutup tab
+  [                            : Tab sebelumnya
+  ]                            : Tab berikutnya
+
+WINDOW
+------
+  W s                          : Split horizontal
+  W v                          : Split vertikal
+  W r                          : Rotate split
+  Alt + q                      : Tutup window
+  Alt + r                      : Toggle orientasi
+
+PENCARIAN
+---------
+  /                            : Cari
+  \                            : Cari dan ganti
+  n                            : Hasil berikutnya
+  N                            : Hasil sebelumnya
+  s                            : Sortir kolom
+
+================================================================================
+                        Tekan Alt+q untuk menutup bantuan
+================================================================================

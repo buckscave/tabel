@@ -1,0 +1,66 @@
+WARNA TEKS
+==========
+
+UBAH WARNA
+----------
+  :cw                          : Buka dialog pemilihan warna teks
+  t lalu w                     : Ubah warna area seleksi
+
+WARNA TERSEDIA
+--------------
+  Default, Gelap, Abu, Putih
+  Hijau, Kuning, Biru, Merah
+
+BORDER
+======
+
+TAMBAH BORDER
+-------------
+  :ba                          : Border semua sisi (all)
+  :bo                          : Border outline saja
+  :bt                          : Border atas (top)
+  :bb                          : Border bawah (bottom)
+  :bl                          : Border kiri (left)
+  :br                          : Border kanan (right)
+
+WARNA BORDER
+------------
+  :bw                          : Ubah warna border
+
+HAPUS BORDER
+------------
+  :none atau :bn               : Hapus semua border
+
+FONT STYLE
+==========
+
+STYLE TERSEDIA
+--------------
+  Ctrl+b                       : Bold (tebal)
+  Ctrl+i                       : Italic (miring)
+  Ctrl+u                       : Underline (garis bawah)
+
+KOMBINASI STYLE
+---------------
+- Style dapat dikombinasikan
+- Contoh: Bold + Italic untuk penekanan
+
+FORMAT SEL
+==========
+
+JENIS FORMAT
+------------
+  Umum                         : Tampilan default
+  Angka                        : Dengan pemisah desimal
+  Tanggal                      : YYYY-MM-DD
+  Waktu                        : HH:MM:SS
+  Timestamp                    : YYYY-MM-DD HH:MM:SS
+  Mata Uang                    : Rp 1.000.000,00
+  Persen                       : 0.00%
+  Teks                         : Paksa sebagai teks
+
+TIPS FORMAT
+-----------
+- Gunakan border untuk mempercantik tampilan
+- Warna membantu kategorisasi data
+- Format otomatis mendeteksi tipe data

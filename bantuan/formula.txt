@@ -1,0 +1,73 @@
+================================================================================
+                        FORMULA & FUNGSI - TABEL v3.0
+================================================================================
+
+SYNTAX DASAR
+------------
+  Awali formula dengan tanda = (sama dengan)
+  Contoh: =A1+B2, =SUM(A1:A10)
+
+OPERATOR ARITMATIKA
+-------------------
+  +                            : Penjumlahan
+  -                            : Pengurangan
+  *                            : Perkalian
+  /                            : Pembagian
+  ^                            : Pangkat
+  %                            : Modulo (sisa bagi)
+
+REFERENSI SEL
+-------------
+  A1, B2, Z100                 : Referensi sel tunggal
+  A1:B10                       : Rentang sel (range)
+  $A$1                         : Referensi absolut (tidak berubah saat copy)
+
+FUNGSI AGREGAT
+--------------
+  =SUM(range)                  : Jumlah semua nilai
+  =AVG(range)                  : Rata-rata nilai
+  =MIN(range)                  : Nilai minimum
+  =MAX(range)                  : Nilai maksimum
+  =COUNT(range)                : Hitung jumlah angka
+  =COUNTA(range)               : Hitung sel tidak kosong
+  =COUNTBLANK(range)           : Hitung sel kosong
+
+FUNGSI MATEMATIKA
+-----------------
+  =ABS(angka)                  : Nilai absolut
+  =SQRT(angka)                 : Akar kuadrat
+  =POWER(angka, pangkat)       : Pangkat
+  =ROUND(angka, desimal)       : Pembulatan
+  =FLOOR(angka)                : Bulatkan ke bawah
+  =CEIL(angka)                 : Bulatkan ke atas
+  =SIN/COS/TAN(angka)          : Fungsi trigonometri
+
+FUNGSI TEKS
+-----------
+  =UPPER(teks)                 : Ubah ke huruf besar
+  =LOWER(teks)                 : Ubah ke huruf kecil
+  =LEN(teks)                   : Panjang teks
+  =LEFT(teks, n)               : Ambil n karakter kiri
+  =RIGHT(teks, n)              : Ambil n karakter kanan
+  =MID(teks, mulai, n)         : Ambil n karakter dari posisi
+  =TRIM(teks)                  : Hapus spasi berlebih
+  =CONCAT(teks1, teks2)        : Gabung teks
+
+FUNGSI LOGIKA
+-------------
+  =IF(kondisi, benar, salah)   : Kondisional
+  =AND(a, b)                   : Logika DAN
+  =OR(a, b)                    : Logika ATAU
+  =NOT(a)                      : Logika TIDAK
+
+FUNGSI WAKTU
+------------
+  =TODAY()                     : Tanggal hari ini
+  =NOW()                       : Tanggal dan waktu sekarang
+  =YEAR(tanggal)               : Ambil tahun
+  =MONTH(tanggal)              : Ambil bulan
+  =DAY(tanggal)                : Ambil hari
+
+================================================================================
+                        Tekan Alt+q untuk menutup bantuan
+================================================================================

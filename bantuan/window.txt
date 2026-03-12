@@ -1,0 +1,47 @@
+================================================================================
+                        MANAJEMEN WINDOW - TABEL v3.0
+================================================================================
+
+SPLIT WINDOW
+------------
+  W s                          : Split horizontal (atas/bawah)
+  W v                          : Split vertikal (kiri/kanan)
+  W r                          : Rotate/toggle orientasi split
+
+TUTUP WINDOW
+------------
+  Alt + q                      : Tutup window aktif
+  Alt + r                      : Toggle orientasi split aktif
+
+NAVIGASI ANTAR WINDOW
+---------------------
+  Alt + Panah                  : Pindah fokus ke window lain
+  Ctrl + Alt + Panah           : Pindah fokus (alternatif)
+
+RESIZE WINDOW
+-------------
+  Alt + Shift + Panah          : Resize window aktif
+  Super + Panah                : Resize window (tombol Windows/Command)
+
+TAB/BUFFER
+----------
+  t                            : Buka tab/buffer baru
+  T                            : Tutup tab aktif
+  [                            : Pindah ke tab sebelumnya
+  ]                            : Pindah ke tab berikutnya
+
+MAXIMIZE/RESTORE
+----------------
+  W o                          : Maximalkan window aktif
+  W =                          : Samakan ukuran semua window
+
+ORIENTASI SPLIT
+---------------
+  Horizontal: Window tersusun atas dan bawah
+  Vertikal  : Window tersusun kiri dan kanan
+
+  Gunakan Alt+r atau W r untuk toggle orientasi
+
+================================================================================
+                        Tekan Alt+q untuk menutup bantuan
+================================================================================
