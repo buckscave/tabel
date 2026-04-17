@@ -359,7 +359,8 @@ int simpan_csv(const struct buffer_tabel *buf, const char *fn)
 int buka_csv(struct buffer_tabel **pbuf, const char *fn)
 {
     FILE *f;
-    char line[MAKS_TEKS * MAKS_KOLOM];
+    char *line;
+    size_t line_buf_size;
     int baris = 0;
     int kolom = 0;
     int r;
@@ -376,8 +377,13 @@ int buka_csv(struct buffer_tabel **pbuf, const char *fn)
     f = fopen(fn, "r");
     if (!f) return -1;
 
+    /* Alokasi buffer dinamis untuk baris panjang */
+    line_buf_size = MAKS_TEKS * 64;
+    line = malloc(line_buf_size);
+    if (!line) { fclose(f); return -1; }
+
     /* Hitung dimensi */
-    while (fgets(line, sizeof(line), f)) {
+    while (fgets(line, (int)line_buf_size, f)) {
         baris++;
         c = 0;
         last_nonempty = 0;
@@ -400,17 +406,20 @@ int buka_csv(struct buffer_tabel **pbuf, const char *fn)
     }
     fclose(f);
 
-    if (baris <= 0) return -1;
+    if (baris <= 0) { free(line); return -1; }
     if (kolom <= 0) kolom = 1;
 
+    /* Gunakan buat_buffer_satu_lembar untuk menghemat memori
+     * (hanya 1 lembar, bukan 3 lembar seperti buat_buffer) */
     bebas_buffer(*pbuf);
-    *pbuf = buat_buffer(baris, kolom);
+    *pbuf = buat_buffer_satu_lembar(baris, kolom);
+    if (!*pbuf) { free(line); return -1; }
 
     f = fopen(fn, "r");
-    if (!f) return -1;
+    if (!f) { free(line); return -1; }
 
     r = 0;
-    while (fgets(line, sizeof(line), f) && r < (*pbuf)->cfg.baris) {
+    while (fgets(line, (int)line_buf_size, f) && r < (*pbuf)->cfg.baris) {
         c = 0;
         p = line;
         while (*p && c < (*pbuf)->cfg.kolom) {
@@ -446,6 +455,7 @@ int buka_csv(struct buffer_tabel **pbuf, const char *fn)
         r++;
     }
     fclose(f);
+    free(line);
     return 0;
 }
 
@@ -489,70 +499,433 @@ int simpan_sql(const struct buffer_tabel *buf, const char *fn)
 
 int buka_sql(struct buffer_tabel **pbuf, const char *fn)
 {
+    /* Struktur untuk menyimpan info tabel SQL */
+    #define MAKS_TABEL_SQL 256
+    struct info_tabel_sql {
+        char nama[NAMA_LEMBAR_MAKS];
+        int kolom;
+        int baris;
+        char **nama_kolom;   /* Nama kolom dari CREATE TABLE */
+        long pos_create;     /* Posisi file awal CREATE TABLE */
+    };
+
     FILE *f;
-    char line[MAKS_TEKS * MAKS_KOLOM];
-    int baris = 0;
-    int kolom = 0;
-    int r;
-    int c;
-    char *p;
+    char *line;
+    size_t line_buf_size;
+    int jumlah_tabel = 0;
+    struct info_tabel_sql tabel[MAKS_TABEL_SQL];
+    int tabel_aktif = -1;
+    int i, r, c;
+    char *p, *q;
     char cell[MAKS_TEKS];
     int idx;
+    int in_create = 0;
+    int paren_depth = 0;
+    int in_paren_quote = 0;  /* Quote di dalam tanda kurung CREATE TABLE */
+    struct buffer_tabel *buf;
+    struct lembar_tabel *lem;
 
     if (!pbuf || !fn) return -1;
     f = fopen(fn, "r");
     if (!f) return -1;
 
-    /* Hitung dimensi */
-    while (fgets(line, sizeof(line), f)) {
-        if (strncmp(line, "CREATE TABLE", 12) == 0) {
-            p = strchr(line, '(');
-            if (p) {
-                kolom = 0;
-                while (*p) {
-                    if (*p == ',') kolom++;
+    line_buf_size = MAKS_TEKS * 64;
+    line = malloc(line_buf_size);
+    if (!line) { fclose(f); return -1; }
+
+    memset(tabel, 0, sizeof(tabel));
+
+    /* Pass 1: Identifikasi semua tabel dan hitung dimensi */
+    while (fgets(line, (int)line_buf_size, f)) {
+        /* Lewati whitespace di awal baris untuk deteksi CREATE TABLE */
+        p = line;
+        while (*p == ' ' || *p == '\t') p++;
+
+        /* Deteksi CREATE TABLE (case-insensitive) */
+        if (strncasecmp(p, "CREATE TABLE", 12) == 0) {
+            if (jumlah_tabel < MAKS_TABEL_SQL) {
+                tabel_aktif = jumlah_tabel;
+                tabel[tabel_aktif].kolom = 0;
+                tabel[tabel_aktif].baris = 0;
+                tabel[tabel_aktif].nama_kolom = NULL;
+                tabel[tabel_aktif].pos_create = ftell(f);
+
+                /* Ekstrak nama tabel (p sudah melewati whitespace) */
+                p += 12; /* Lewati "CREATE TABLE" */
+                while (*p == ' ' || *p == '\t') p++;
+                /* Lewati IF NOT EXISTS jika ada */
+                if (strncasecmp(p, "IF", 2) == 0) {
+                    p += 2; while (*p == ' ') p++;
+                    if (strncasecmp(p, "NOT", 3) == 0) {
+                        p += 3; while (*p == ' ') p++;
+                    }
+                    if (strncasecmp(p, "EXISTS", 6) == 0) {
+                        p += 6; while (*p == ' ') p++;
+                    }
+                }
+                q = tabel[tabel_aktif].nama;
+                while (*p && *p != '(' && *p != ' ' && *p != '\t' && 
+                       *p != '\n' && *p != '\r' && q < tabel[tabel_aktif].nama + NAMA_LEMBAR_MAKS - 1) {
+                    /* Hapus backtick dan tanda kutip jika ada */
+                    if (*p != '`' && *p != '"' && *p != '[' && *p != ']') *q++ = *p;
                     p++;
                 }
-                kolom++;
+                *q = '\0';
+
+                /* Cek apakah kolom ada di baris yang sama */
+                p = strchr(line, '(');
+                if (p) {
+                    in_create = 1;
+                    paren_depth = 1;
+                    in_paren_quote = 0;
+                    p++;
+                    /* Hitung kolom dari baris ini.
+                     * Comma dihitung hanya pada paren_depth == 1
+                     * (di dalam kurung CREATE TABLE tapi bukan nested parens
+                     *  seperti VARCHAR(255)). Stop saat kurung tutup terakhir. */
+                    while (*p) {
+                        if (*p == '\'' && !in_paren_quote) in_paren_quote = 1;
+                        else if (*p == '\'' && in_paren_quote) in_paren_quote = 0;
+                        else if (*p == '(' && !in_paren_quote) paren_depth++;
+                        else if (*p == ')' && !in_paren_quote) {
+                            paren_depth--;
+                            if (paren_depth == 0) {
+                                tabel[tabel_aktif].kolom++; /* Kolom terakhir */
+                                in_create = 0;
+                                jumlah_tabel++;
+                                break;
+                            }
+                        }
+                        else if (*p == ',' && paren_depth == 1 && !in_paren_quote) {
+                            tabel[tabel_aktif].kolom++;
+                        }
+                        p++;
+                    }
+                } else {
+                    in_create = 1;
+                    paren_depth = 0;
+                    in_paren_quote = 0;
+                }
+            }
+            continue;
+        }
+
+        /* Lanjutkan multi-line CREATE TABLE */
+        if (in_create && tabel_aktif >= 0) {
+            p = line;
+            in_paren_quote = 0;
+            while (*p) {
+                if (*p == '\'' && !in_paren_quote) in_paren_quote = 1;
+                else if (*p == '\'' && in_paren_quote) in_paren_quote = 0;
+                else if (*p == '(' && !in_paren_quote) paren_depth++;
+                else if (*p == ')' && !in_paren_quote) {
+                    paren_depth--;
+                    if (paren_depth == 0) {
+                        tabel[tabel_aktif].kolom++; /* Kolom terakhir */
+                        in_create = 0;
+                        jumlah_tabel++;
+                        break;
+                    }
+                }
+                else if (*p == ',' && paren_depth == 1 && !in_paren_quote) {
+                    tabel[tabel_aktif].kolom++;
+                }
+                p++;
+            }
+            continue;
+        }
+
+        /* Deteksi INSERT INTO (case-insensitive, lewati whitespace) */
+        if (strncasecmp(p, "INSERT", 6) == 0) {
+            char nama_tabel[NAMA_LEMBAR_MAKS];
+            int t_idx;
+            int kolom_insert = 0;
+
+            /* Ekstrak nama tabel dari INSERT INTO (p sudah melewati whitespace) */
+            p += 6; /* Lewati "INSERT" */
+            while (*p == ' ') p++;
+            if (strncasecmp(p, "INTO", 4) == 0) p += 4;
+            while (*p == ' ') p++;
+            q = nama_tabel;
+            while (*p && *p != '(' && *p != ' ' && *p != '\t' && 
+                   *p != '\n' && *p != '\r' && q < nama_tabel + NAMA_LEMBAR_MAKS - 1) {
+                if (*p != '`' && *p != '"' && *p != '[' && *p != ']') *q++ = *p;
+                p++;
+            }
+            *q = '\0';
+
+            /* Cari tabel yang sesuai */
+            t_idx = -1;
+            for (i = 0; i < jumlah_tabel; i++) {
+                if (strcmp(tabel[i].nama, nama_tabel) == 0) {
+                    t_idx = i;
+                    break;
+                }
+            }
+
+            /* Jika tabel belum terdaftar, buat entri baru */
+            if (t_idx < 0) {
+                if (jumlah_tabel < MAKS_TABEL_SQL) {
+                    t_idx = jumlah_tabel;
+                    salin_str_aman(tabel[t_idx].nama, nama_tabel, NAMA_LEMBAR_MAKS);
+                    tabel[t_idx].kolom = 0;
+                    tabel[t_idx].baris = 0;
+                    tabel[t_idx].nama_kolom = NULL;
+                    tabel[t_idx].pos_create = 0;
+                    jumlah_tabel++;
+                } else {
+                    continue;
+                }
+            }
+
+            /* Cari klausa VALUES untuk menghitung kolom */
+            if (tabel[t_idx].kolom <= 0) {
+                char *values_pos = strstr(line, "VALUES");
+                if (!values_pos) values_pos = strstr(line, "values");
+                if (!values_pos) {
+                    /* Coba case-insensitive manual */
+                    char *search = line;
+                    while (*search) {
+                        if (strncasecmp(search, "VALUES", 6) == 0) {
+                            values_pos = search;
+                            break;
+                        }
+                        search++;
+                    }
+                }
+                if (values_pos) {
+                    char *open_paren = strchr(values_pos, '(');
+                    if (open_paren) {
+                        int in_q = 0;
+                        kolom_insert = 0;
+                        p = open_paren + 1;
+                        while (*p && *p != ')') {
+                            if (*p == '\'' && !in_q) in_q = 1;
+                            else if (*p == '\'' && in_q) {
+                                /* Cek escaped quote */
+                                if (*(p+1) == '\'') { p += 2; continue; }
+                                in_q = 0;
+                            }
+                            else if (*p == ',' && !in_q) kolom_insert++;
+                            p++;
+                        }
+                        kolom_insert++; /* Kolom terakhir */
+                        tabel[t_idx].kolom = kolom_insert;
+                    }
+                }
+            }
+
+            /* Hitung baris - bisa multi-row INSERT */
+            {
+                char *values_pos = NULL;
+                char *search = line;
+                while (*search) {
+                    if (strncasecmp(search, "VALUES", 6) == 0) {
+                        values_pos = search;
+                        break;
+                    }
+                    search++;
+                }
+                if (values_pos) {
+                    /* Hitung jumlah set nilai (baris) dalam satu INSERT */
+                    int num_sets = 0;
+                    p = values_pos + 6;
+                    while (*p) {
+                        if (*p == '(') {
+                            /* Lewati isi tanda kurung */
+                            int depth = 1;
+                            int in_q2 = 0;
+                            p++;
+                            while (*p && depth > 0) {
+                                if (*p == '\'' && !in_q2) in_q2 = 1;
+                                else if (*p == '\'' && in_q2) {
+                                    if (*(p+1) == '\'') { p += 2; continue; }
+                                    in_q2 = 0;
+                                }
+                                else if (*p == '(' && !in_q2) depth++;
+                                else if (*p == ')' && !in_q2) depth--;
+                                if (depth > 0) p++;
+                            }
+                            num_sets++;
+                        }
+                        p++;
+                    }
+                    if (num_sets <= 0) num_sets = 1;
+                    tabel[t_idx].baris += num_sets;
+                } else {
+                    tabel[t_idx].baris++;
+                }
             }
         }
-        if (strncmp(line, "INSERT", 6) == 0) baris++;
     }
+
     fclose(f);
 
-    if (baris <= 0) return -1;
-    if (kolom <= 0) kolom = 1;
+    if (jumlah_tabel <= 0) {
+        free(line);
+        return -1;
+    }
+
+    /* Validasi dan pastikan semua tabel punya kolom */
+    for (i = 0; i < jumlah_tabel; i++) {
+        if (tabel[i].kolom <= 0) tabel[i].kolom = 1;
+        if (tabel[i].baris <= 0) tabel[i].baris = 1;
+    }
+
+    /* Buat buffer dengan satu lembar untuk tabel pertama */
+    buf = buat_buffer_satu_lembar(tabel[0].baris, tabel[0].kolom);
+    if (!buf) {
+        free(line);
+        return -1;
+    }
+
+    /* Tambahkan lembar untuk tabel berikutnya */
+    for (i = 1; i < jumlah_tabel; i++) {
+        lem = buat_lembar(tabel[i].baris, tabel[i].kolom, tabel[i].nama);
+        if (lem) {
+            tambah_lembar_ke_buffer(buf, lem);
+        }
+    }
+
+    /* Rename lembar pertama sesuai nama tabel */
+    if (tabel[0].nama[0]) {
+        rename_lembar(buf, 0, tabel[0].nama);
+    }
+
+    /* Pass 2: Baca data INSERT ke lembar yang sesuai */
+    f = fopen(fn, "r");
+    if (!f) {
+        bebas_buffer(buf);
+        free(line);
+        return -1;
+    }
+
+    /* Reset counter baris per tabel */
+    {
+        int baris_counter[MAKS_TABEL_SQL];
+        for (i = 0; i < jumlah_tabel; i++) baris_counter[i] = 0;
+
+        while (fgets(line, (int)line_buf_size, f)) {
+            /* Lewati whitespace di awal baris */
+            p = line;
+            while (*p == ' ' || *p == '\t') p++;
+            if (strncasecmp(p, "INSERT", 6) != 0) continue;
+
+            /* Ekstrak nama tabel (p sudah melewati whitespace) */
+            p += 6; /* Lewati "INSERT" */
+            while (*p == ' ') p++;
+            if (strncasecmp(p, "INTO", 4) == 0) p += 4;
+            while (*p == ' ') p++;
+            {
+                char nama_tabel[NAMA_LEMBAR_MAKS];
+                int t_idx;
+                int lem_idx;
+
+                q = nama_tabel;
+                while (*p && *p != '(' && *p != ' ' && *p != '\t' && 
+                       *p != '\n' && *p != '\r' && q < nama_tabel + NAMA_LEMBAR_MAKS - 1) {
+                    if (*p != '`' && *p != '"' && *p != '[' && *p != ']') *q++ = *p;
+                    p++;
+                }
+                *q = '\0';
+
+                /* Cari index tabel */
+                t_idx = -1;
+                for (i = 0; i < jumlah_tabel; i++) {
+                    if (strcmp(tabel[i].nama, nama_tabel) == 0) {
+                        t_idx = i;
+                        break;
+                    }
+                }
+                if (t_idx < 0) continue;
+
+                /* Set lembar aktif */
+                set_lembar_aktif(buf, t_idx);
+                lem_idx = t_idx;
+
+                /* Cari klausa VALUES - bukan tanda kurung pertama */
+                {
+                    char *values_pos = NULL;
+                    char *search = line;
+                    while (*search) {
+                        if (strncasecmp(search, "VALUES", 6) == 0) {
+                            values_pos = search;
+                            break;
+                        }
+                        search++;
+                    }
+
+                    if (!values_pos) continue;
+
+                    /* Parse setiap set nilai (untuk multi-row INSERT) */
+                    p = values_pos + 6;
+                    while (*p) {
+                        if (*p != '(') { p++; continue; }
+
+                        /* Awal set nilai */
+                        p++; /* Lewati '(' */
+                        r = baris_counter[t_idx];
+                        c = 0;
+
+                        while (*p && *p != ')' && c < tabel[t_idx].kolom && r < tabel[t_idx].baris) {
+                            idx = 0;
+                            if (*p == '\'') {
+                                p++;
+                                while (*p && *p != '\'' && idx < MAKS_TEKS - 1) {
+                                    if (*p == '\'' && *(p+1) == '\'') {
+                                        cell[idx++] = '\'';
+                                        p += 2;
+                                    } else {
+                                        cell[idx++] = *p++;
+                                    }
+                                }
+                                if (*p == '\'') p++;
+                            } else {
+                                /* Nilai tanpa quote (angka, NULL, dll) */
+                                while (*p && *p != ',' && *p != ')' && idx < MAKS_TEKS - 1) {
+                                    cell[idx++] = *p++;
+                                }
+                            }
+                            cell[idx] = '\0';
+
+                            /* Trim spasi */
+                            while (idx > 0 && (cell[idx-1] == ' ' || cell[idx-1] == '\t' || 
+                                   cell[idx-1] == '\n' || cell[idx-1] == '\r')) {
+                                cell[--idx] = '\0';
+                            }
+
+                            if (r < buf->lembar[lem_idx]->baris && c < buf->lembar[lem_idx]->kolom) {
+                                salin_str_aman(buf->lembar[lem_idx]->isi[r][c], cell, MAKS_TEKS);
+                            }
+                            c++;
+                            /* Lewati sisa nilai jika ada koma */
+                            while (*p && *p != ',' && *p != ')') p++;
+                            if (*p == ',') p++;
+                        }
+
+                        /* Lewati sampai akhir set */
+                        while (*p && *p != ')') p++;
+                        if (*p == ')') p++;
+
+                        baris_counter[t_idx]++;
+
+                        /* Lewati koma antar set pada multi-row INSERT */
+                        while (*p && (*p == ' ' || *p == ',' || *p == '\t')) p++;
+                    }
+                }
+            }
+        }
+    }
+
+    fclose(f);
+    free(line);
+
+    /* Kembali ke lembar pertama */
+    set_lembar_aktif(buf, 0);
+    sinkronkan_pointer_lembar_aktif(buf);
 
     bebas_buffer(*pbuf);
-    *pbuf = buat_buffer(baris, kolom);
-
-    f = fopen(fn, "r");
-    if (!f) return -1;
-
-    r = 0;
-    while (fgets(line, sizeof(line), f)) {
-        if (strncmp(line, "INSERT", 6) == 0) {
-            p = strchr(line, '(');
-            if (!p) continue;
-            p++;
-            c = 0;
-            while (*p && c < (*pbuf)->cfg.kolom) {
-                idx = 0;
-                if (*p == '\'') p++;
-                while (*p && *p != '\'' && idx < MAKS_TEKS - 1) {
-                    cell[idx++] = *p;
-                    p++;
-                }
-                cell[idx] = '\0';
-                salin_str_aman((*pbuf)->isi[r][c], cell, MAKS_TEKS);
-                while (*p && *p != ',' && *p != ')') p++;
-                if (*p == ',') p++;
-                c++;
-            }
-            r++;
-        }
-    }
-    fclose(f);
+    *pbuf = buf;
     return 0;
 }
 
@@ -592,6 +965,34 @@ int simpan_db(const struct buffer_tabel *buf, const char *fn)
 int buka_db(struct buffer_tabel **pbuf, const char *fn)
 {
     FILE *f;
+    unsigned char header[16];
+    size_t bytes;
+
+    if (!pbuf || !fn) return -1;
+
+    /* Cek apakah file adalah SQLite database */
+    f = fopen(fn, "rb");
+    if (!f) return -1;
+
+    bytes = fread(header, 1, 16, f);
+    fclose(f);
+
+    if (bytes >= 16 && memcmp(header, "SQLite format 3\000", 16) == 0) {
+        /* File adalah SQLite database - gunakan sqlite3 */
+        return buka_sqlite(pbuf, fn);
+    }
+
+    /* File bukan SQLite - coba format biner native */
+    return buka_db_native(pbuf, fn);
+}
+
+/* ============================================================
+ * I/O DB Native (Format Biner Tabel)
+ * ============================================================ */
+
+int buka_db_native(struct buffer_tabel **pbuf, const char *fn)
+{
+    FILE *f;
     int cols, rows;
     int r, c;
     size_t len;
@@ -600,19 +1001,166 @@ int buka_db(struct buffer_tabel **pbuf, const char *fn)
     f = fopen(fn, "rb");
     if (!f) return -1;
 
-    fread(&cols, sizeof(int), 1, f);
-    fread(&rows, sizeof(int), 1, f);
+    if (fread(&cols, sizeof(int), 1, f) != 1) { fclose(f); return -1; }
+    if (fread(&rows, sizeof(int), 1, f) != 1) { fclose(f); return -1; }
+
+    /* Validasi dimensi agar tidak hang pada file tidak valid */
+    if (cols <= 0 || cols > MAKS_KOLOM || rows <= 0 || rows > MAKS_BARIS) {
+        fclose(f);
+        return -1;
+    }
 
     bebas_buffer(*pbuf);
-    *pbuf = buat_buffer(rows, cols);
+    *pbuf = buat_buffer_satu_lembar(rows, cols);
 
     for (r = 0; r < rows; r++) {
         for (c = 0; c < cols; c++) {
-            fread(&len, sizeof(size_t), 1, f);
-            fread((*pbuf)->isi[r][c], 1, len, f);
+            if (fread(&len, sizeof(size_t), 1, f) != 1) break;
+            if (len == 0 || len > MAKS_TEKS) break;
+            if (fread((*pbuf)->isi[r][c], 1, len, f) != len) break;
         }
     }
     fclose(f);
+    return 0;
+}
+
+/* ============================================================
+ * I/O SQLite Database
+ * ============================================================ */
+
+#include <sqlite3.h>
+
+int buka_sqlite(struct buffer_tabel **pbuf, const char *fn)
+{
+    sqlite3 *db;
+    sqlite3_stmt *stmt;
+    int rc;
+    struct buffer_tabel *buf;
+    struct lembar_tabel *lem;
+    int jumlah_tabel = 0;
+    char *nama_tabel[256];
+    int kolom_tabel[256];
+    int baris_tabel[256];
+    int i, r, c, col_count;
+    char query[512];
+    /* Batas maksimum baris per tabel untuk mencegah hang
+     * pada database sangat besar (alokasi memori berlebihan) */
+    #define BATAS_BARIS_DB 50000
+
+    if (!pbuf || !fn) return -1;
+
+    rc = sqlite3_open_v2(fn, &db, SQLITE_OPEN_READONLY, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return -1;
+    }
+
+    /* Set busy timeout agar tidak hang jika DB terkunci */
+    sqlite3_busy_timeout(db, 5000);
+
+    /* Dapatkan daftar tabel */
+    rc = sqlite3_prepare_v2(db, 
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+        -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_close(db);
+        return -1;
+    }
+
+    while (sqlite3_step(stmt) == SQLITE_ROW && jumlah_tabel < 256) {
+        const char *name = (const char *)sqlite3_column_text(stmt, 0);
+        if (name) {
+            nama_tabel[jumlah_tabel] = strdup(name);
+            kolom_tabel[jumlah_tabel] = 0;
+            baris_tabel[jumlah_tabel] = 0;
+            jumlah_tabel++;
+        }
+    }
+    sqlite3_finalize(stmt);
+
+    if (jumlah_tabel <= 0) {
+        sqlite3_close(db);
+        return -1;
+    }
+
+    /* Hitung baris dan kolom per tabel */
+    for (i = 0; i < jumlah_tabel; i++) {
+        /* Hitung kolom */
+        snprintf(query, sizeof(query), "SELECT * FROM \"%s\" LIMIT 0", nama_tabel[i]);
+        rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+        if (rc == SQLITE_OK) {
+            kolom_tabel[i] = sqlite3_column_count(stmt);
+            sqlite3_finalize(stmt);
+        }
+
+        /* Hitung baris */
+        snprintf(query, sizeof(query), "SELECT COUNT(*) FROM \"%s\"", nama_tabel[i]);
+        rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+        if (rc == SQLITE_OK) {
+            if (sqlite3_step(stmt) == SQLITE_ROW) {
+                baris_tabel[i] = sqlite3_column_int(stmt, 0);
+            }
+            sqlite3_finalize(stmt);
+        }
+
+        if (kolom_tabel[i] <= 0) kolom_tabel[i] = 1;
+        if (baris_tabel[i] <= 0) baris_tabel[i] = 1;
+        /* Batasi baris untuk mencegah alokasi memori berlebihan */
+        if (baris_tabel[i] > BATAS_BARIS_DB) baris_tabel[i] = BATAS_BARIS_DB;
+    }
+
+    /* Buat buffer dengan satu lembar untuk tabel pertama */
+    buf = buat_buffer_satu_lembar(baris_tabel[0], kolom_tabel[0]);
+    if (!buf) {
+        for (i = 0; i < jumlah_tabel; i++) free(nama_tabel[i]);
+        sqlite3_close(db);
+        return -1;
+    }
+
+    /* Rename lembar pertama */
+    if (nama_tabel[0]) {
+        rename_lembar(buf, 0, nama_tabel[0]);
+    }
+
+    /* Tambahkan lembar untuk tabel berikutnya */
+    for (i = 1; i < jumlah_tabel; i++) {
+        lem = buat_lembar(baris_tabel[i], kolom_tabel[i], nama_tabel[i]);
+        if (lem) {
+            tambah_lembar_ke_buffer(buf, lem);
+        }
+    }
+
+    /* Baca data dari setiap tabel - gunakan LIMIT untuk efisiensi */
+    for (i = 0; i < jumlah_tabel; i++) {
+        snprintf(query, sizeof(query), "SELECT * FROM \"%s\" LIMIT %d", 
+                 nama_tabel[i], BATAS_BARIS_DB);
+        rc = sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
+        if (rc != SQLITE_OK) continue;
+
+        col_count = sqlite3_column_count(stmt);
+        r = 0;
+        while (sqlite3_step(stmt) == SQLITE_ROW && r < baris_tabel[i]) {
+            for (c = 0; c < col_count && c < kolom_tabel[i]; c++) {
+                const char *val = (const char *)sqlite3_column_text(stmt, c);
+                if (val && r < buf->lembar[i]->baris && c < buf->lembar[i]->kolom) {
+                    salin_str_aman(buf->lembar[i]->isi[r][c], val, MAKS_TEKS);
+                }
+            }
+            r++;
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    /* Kembali ke lembar pertama */
+    set_lembar_aktif(buf, 0);
+    sinkronkan_pointer_lembar_aktif(buf);
+
+    bebas_buffer(*pbuf);
+    *pbuf = buf;
+
+    /* Bersihkan */
+    for (i = 0; i < jumlah_tabel; i++) free(nama_tabel[i]);
+    sqlite3_close(db);
     return 0;
 }
 

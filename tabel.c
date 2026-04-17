@@ -30,6 +30,54 @@ int klip_x2 = -1, klip_y2 = -1;
 int klip_ada_area = 0;
 int klip_mode = 0;
 
+/* Ukuran clipboard area saat ini (untuk free yang benar) */
+static int klip_baris = 0;
+static int klip_kolom = 0;
+
+/* Bebaskan clipboard area lama sebelum alokasi baru */
+static void bebas_papan_klip_area(void) {
+    int r, c;
+    if (papan_klip_area) {
+        for (r = 0; r < klip_baris; r++) {
+            if (papan_klip_area[r]) {
+                for (c = 0; c < klip_kolom; c++) {
+                    free(papan_klip_area[r][c]);
+                }
+                free(papan_klip_area[r]);
+            }
+        }
+        free(papan_klip_area);
+        papan_klip_area = NULL;
+    }
+    klip_baris = 0;
+    klip_kolom = 0;
+}
+
+/* Alokasi clipboard area berdasarkan ukuran buffer */
+static void alokasi_papan_klip_area(int baris, int kolom) {
+    int r, c;
+
+    /* Bebaskan clipboard lama terlebih dahulu */
+    bebas_papan_klip_area();
+
+    /* Batasi ukuran clipboard agar tidak menghabiskan memori */
+    if (baris > 10000) baris = 10000;
+    if (kolom > 100) kolom = 100;
+
+    papan_klip_area = calloc(baris, sizeof(char**));
+    if (!papan_klip_area) return;
+
+    for (r = 0; r < baris; r++) {
+        papan_klip_area[r] = calloc(kolom, sizeof(char*));
+        if (!papan_klip_area[r]) continue;
+        for (c = 0; c < kolom; c++) {
+            papan_klip_area[r][c] = calloc(MAKS_TEKS, sizeof(char));
+        }
+    }
+    klip_baris = baris;
+    klip_kolom = kolom;
+}
+
 /* Buffer Manager */
 struct buffer_tabel **buffers = NULL;
 int jumlah_buffer = 0;
@@ -56,6 +104,31 @@ struct konfigurasi *konfig_global = NULL;
 int seleksi_random_x[MAKS_SELEKSI];
 int seleksi_random_y[MAKS_SELEKSI];
 int seleksi_random = 0;
+
+/* ============================================================
+ * Helper Kolom - Konversi indeks ke nama kolom Excel
+ * ============================================================ */
+void kolom_ke_nama(int kolom, char *buf, size_t ukuran) {
+    int c = kolom + 1;  /* Konversi ke 1-based */
+    char tmp[4];        /* Maksimal 3 huruf (AAA-AZZ) */
+    int len = 0;
+    int i;
+
+    if (!buf || ukuran == 0) return;
+
+    while (c > 0 && len < 3) {
+        c--;
+        tmp[len++] = (char)('A' + (c % 26));
+        c /= 26;
+    }
+
+    /* Balik urutan karena diisi dari belakang */
+    if ((size_t)len >= ukuran) len = (int)ukuran - 1;
+    for (i = 0; i < len; i++) {
+        buf[i] = tmp[len - 1 - i];
+    }
+    buf[len] = '\0';
+}
 
 /* ============================================================
  * Lembar (Sheet) Management
@@ -111,9 +184,10 @@ struct lembar_tabel *buat_lembar(int baris, int kolom, const char *nama) {
     lem->tumpukan_redo = calloc(UNDO_MAKS, sizeof(struct operasi_undo));
     lem->undo_puncak = lem->redo_puncak = 0;
 
-    /* Pencarian */
-    lem->hasil_cari_x = calloc(MAKS_BARIS * MAKS_KOLOM, sizeof(int));
-    lem->hasil_cari_y = calloc(MAKS_BARIS * MAKS_KOLOM, sizeof(int));
+    /* Pencarian - alokasi berdasarkan ukuran aktual lembar,
+     * bukan MAKS_BARIS*MAKS_KOLOM yang menghabiskan ~560MB per lembar */
+    lem->hasil_cari_x = calloc((size_t)baris * kolom, sizeof(int));
+    lem->hasil_cari_y = calloc((size_t)baris * kolom, sizeof(int));
     lem->jumlah_hasil = 0;
     lem->indeks_hasil = 0;
     lem->query_cari[0] = '\0';
@@ -332,6 +406,152 @@ void rename_lembar(struct buffer_tabel *buf, int idx, const char *nama) {
 }
 
 /* ============================================================
+ * Ubah Ukuran Lembar (Dynamic Grid Resize)
+ * ============================================================
+ * Memperbesar atau memperkecil grid lembar kerja.
+ * Data yang ada akan dipertahankan sebanyak mungkin.
+ * Baris/kolom baru diisi dengan nilai default.
+ * ============================================================ */
+int ubah_ukuran_lembar(struct lembar_tabel *lem, int baris_baru, int kolom_baru) {
+    char ***isi_baru;
+    perataan_teks **perataan_baru;
+    struct info_gabung **tergabung_baru;
+    int *lebar_kolom_baru;
+    int *tinggi_baris_baru;
+    struct info_border **border_baru;
+    struct warna_kombinasi **warna_baru;
+    font_style **style_baru;
+    jenis_format_sel **format_baru;
+    int r, c;
+    int min_baris, min_kolom;
+
+    if (!lem) return -1;
+    if (baris_baru < 1) baris_baru = 1;
+    if (kolom_baru < 1) kolom_baru = 1;
+    if (baris_baru > MAKS_BARIS) baris_baru = MAKS_BARIS;
+    if (kolom_baru > MAKS_KOLOM) kolom_baru = MAKS_KOLOM;
+
+    /* Jika ukuran sama, tidak perlu diubah */
+    if (baris_baru == lem->baris && kolom_baru == lem->kolom) return 0;
+
+    min_baris = (baris_baru < lem->baris) ? baris_baru : lem->baris;
+    min_kolom = (kolom_baru < lem->kolom) ? kolom_baru : lem->kolom;
+
+    /* Alokasi grid baru */
+    isi_baru = calloc(baris_baru, sizeof(char**));
+    perataan_baru = calloc(baris_baru, sizeof(perataan_teks*));
+    tergabung_baru = calloc(baris_baru, sizeof(struct info_gabung*));
+    border_baru = calloc(baris_baru, sizeof(struct info_border*));
+    warna_baru = calloc(baris_baru, sizeof(struct warna_kombinasi*));
+    style_baru = calloc(baris_baru, sizeof(font_style*));
+    format_baru = calloc(baris_baru, sizeof(jenis_format_sel*));
+
+    if (!isi_baru || !perataan_baru || !tergabung_baru || 
+        !border_baru || !warna_baru || !style_baru || !format_baru) {
+        free(isi_baru); free(perataan_baru); free(tergabung_baru);
+        free(border_baru); free(warna_baru); free(style_baru); free(format_baru);
+        return -1;
+    }
+
+    for (r = 0; r < baris_baru; r++) {
+        isi_baru[r] = calloc(kolom_baru, sizeof(char*));
+        perataan_baru[r] = calloc(kolom_baru, sizeof(perataan_teks));
+        tergabung_baru[r] = calloc(kolom_baru, sizeof(struct info_gabung));
+        border_baru[r] = calloc(kolom_baru, sizeof(struct info_border));
+        warna_baru[r] = calloc(kolom_baru, sizeof(struct warna_kombinasi));
+        style_baru[r] = calloc(kolom_baru, sizeof(font_style));
+        format_baru[r] = calloc(kolom_baru, sizeof(jenis_format_sel));
+
+        for (c = 0; c < kolom_baru; c++) {
+            isi_baru[r][c] = calloc(MAKS_TEKS, sizeof(char));
+            perataan_baru[r][c] = RATA_KIRI;
+            tergabung_baru[r][c].x_anchor = -1;
+            tergabung_baru[r][c].y_anchor = -1;
+            border_baru[r][c].top = 0;
+            border_baru[r][c].bottom = 0;
+            border_baru[r][c].left = 0;
+            border_baru[r][c].right = 0;
+            border_baru[r][c].warna_depan = WARNAD_PUTIH;
+            border_baru[r][c].warna_latar = WARNAL_DEFAULT;
+            warna_baru[r][c].depan = WARNAD_DEFAULT;
+            warna_baru[r][c].latar = WARNAL_DEFAULT;
+            style_baru[r][c] = STYLE_NORMAL;
+            format_baru[r][c] = FORMAT_UMUM;
+        }
+
+        /* Salin data dari grid lama */
+        if (r < min_baris) {
+            for (c = 0; c < min_kolom; c++) {
+                salin_str_aman(isi_baru[r][c], lem->isi[r][c], MAKS_TEKS);
+                perataan_baru[r][c] = lem->perataan_sel[r][c];
+                tergabung_baru[r][c] = lem->tergabung[r][c];
+                border_baru[r][c] = lem->border_sel[r][c];
+                warna_baru[r][c] = lem->warna_sel[r][c];
+                style_baru[r][c] = lem->style_sel[r][c];
+                format_baru[r][c] = lem->format_sel[r][c];
+            }
+        }
+    }
+
+    /* Alokasi array lebar kolom dan tinggi baris baru */
+    lebar_kolom_baru = calloc(kolom_baru, sizeof(int));
+    tinggi_baris_baru = calloc(baris_baru, sizeof(int));
+
+    for (c = 0; c < kolom_baru; c++) {
+        lebar_kolom_baru[c] = (c < lem->kolom) ? lem->lebar_kolom[c] : LEBAR_KOLOM_DEFAULT;
+    }
+    for (r = 0; r < baris_baru; r++) {
+        tinggi_baris_baru[r] = (r < lem->baris) ? lem->tinggi_baris[r] : TINGGI_BARIS_DEFAULT;
+    }
+
+    /* Bebaskan grid lama */
+    for (r = 0; r < lem->baris; r++) {
+        for (c = 0; c < lem->kolom; c++) {
+            free(lem->isi[r][c]);
+        }
+        free(lem->isi[r]);
+        free(lem->perataan_sel[r]);
+        free(lem->tergabung[r]);
+        free(lem->border_sel[r]);
+        free(lem->warna_sel[r]);
+        free(lem->style_sel[r]);
+        free(lem->format_sel[r]);
+    }
+    free(lem->isi);
+    free(lem->perataan_sel);
+    free(lem->tergabung);
+    free(lem->lebar_kolom);
+    free(lem->tinggi_baris);
+    free(lem->border_sel);
+    free(lem->warna_sel);
+    free(lem->style_sel);
+    free(lem->format_sel);
+
+    /* Pasang grid baru */
+    lem->isi = isi_baru;
+    lem->perataan_sel = perataan_baru;
+    lem->tergabung = tergabung_baru;
+    lem->lebar_kolom = lebar_kolom_baru;
+    lem->tinggi_baris = tinggi_baris_baru;
+    lem->border_sel = border_baru;
+    lem->warna_sel = warna_baru;
+    lem->style_sel = style_baru;
+    lem->format_sel = format_baru;
+    lem->baris = baris_baru;
+    lem->kolom = kolom_baru;
+
+    /* Alokasi ulang array pencarian berdasarkan ukuran baru */
+    free(lem->hasil_cari_x);
+    free(lem->hasil_cari_y);
+    lem->hasil_cari_x = calloc((size_t)baris_baru * kolom_baru, sizeof(int));
+    lem->hasil_cari_y = calloc((size_t)baris_baru * kolom_baru, sizeof(int));
+    lem->jumlah_hasil = 0;
+    lem->indeks_hasil = 0;
+
+    return 0;
+}
+
+/* ============================================================
  * Buffer Management
  * ============================================================ */
 
@@ -380,19 +600,53 @@ struct buffer_tabel *buat_buffer(int baris, int kolom) {
 
     sinkronkan_pointer_lembar_aktif(buf);
 
-    /* Alokasi clipboard area */
-    papan_klip_area = calloc(MAKS_BARIS, sizeof(char**));
-    if (papan_klip_area) {
-        int r, c;
-        for (r = 0; r < MAKS_BARIS; r++) {
-            papan_klip_area[r] = calloc(MAKS_KOLOM, sizeof(char*));
-            if (papan_klip_area[r]) {
-                for (c = 0; c < MAKS_KOLOM; c++) {
-                    papan_klip_area[r][c] = calloc(MAKS_TEKS, sizeof(char));
-                }
-            }
-        }
+    /* Alokasi clipboard area - berdasarkan ukuran buffer aktual */
+    alokasi_papan_klip_area(baris, kolom);
+
+    return buf;
+}
+
+/* ============================================================
+ * Buat Buffer dengan Satu Lembar (untuk buka berkas)
+ * ============================================================ */
+struct buffer_tabel *buat_buffer_satu_lembar(int baris, int kolom) {
+    struct buffer_tabel *buf;
+    struct lembar_tabel *lem1;
+
+    if (baris < 1) baris = 1;
+    if (kolom < 1) kolom = 1;
+    if (baris > MAKS_BARIS) baris = MAKS_BARIS;
+    if (kolom > MAKS_KOLOM) kolom = MAKS_KOLOM;
+
+    buf = calloc(1, sizeof(*buf));
+    if (!buf) return NULL;
+
+    buf->refcount = 1;
+    buf->cfg.baris = baris;
+    buf->cfg.kolom = kolom;
+    buf->cfg.aktif_x = buf->cfg.aktif_y = 0;
+    buf->cfg.lihat_kolom = buf->cfg.lihat_baris = 0;
+    buf->cfg.kotor = 0;
+    strcpy(buf->cfg.csv_delim, ",");
+    strncpy(buf->cfg.enkoding, "UTF-8", ENKODING_MAKS);
+
+    buf->lembar = NULL;
+    buf->jumlah_lembar = 0;
+    buf->lembar_aktif = 0;
+    buf->lembar_scroll = 0;
+
+    /* Buat hanya 1 lembar */
+    lem1 = buat_lembar(baris, kolom, "Lembar 1");
+    if (!lem1) {
+        free(buf);
+        return NULL;
     }
+
+    tambah_lembar_ke_buffer(buf, lem1);
+    sinkronkan_pointer_lembar_aktif(buf);
+
+    /* Alokasi clipboard area - berdasarkan ukuran buffer aktual */
+    alokasi_papan_klip_area(baris, kolom);
 
     return buf;
 }

@@ -6,8 +6,8 @@
 
 # Compiler dan Flags
 CC = cc
-CFLAGS = -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=600
-LDFLAGS = -lm
+CFLAGS = -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=600 -I.
+LDFLAGS = -lm -lsqlite3
 
 # Target executable
 TARGET = tabel
@@ -17,34 +17,34 @@ HEADER = tabel.h
 
 # Source files di root
 SRC_ROOT = tabel.c \
-           kunci.c \
-           tampilan.c \
-           warna.c \
-           bantuan.c \
-           sel.c \
-           berkas.c \
-           jendela.c \
-           form.c
+	kunci.c \
+	tampilan.c \
+	warna.c \
+	bantuan.c \
+	sel.c \
+	berkas.c \
+	jendela.c \
+	form.c
 
 # Source files di subdirektori berkas/
 SRC_BERKAS = berkas/tbl.c \
-             berkas/json.c \
-             berkas/pdf.c \
-             berkas/ods.c \
-             berkas/xlsx.c \
-             berkas/xls.c \
-             berkas/html.c \
-             berkas/xmlss.c
+	berkas/json.c \
+	berkas/pdf.c \
+	berkas/ods.c \
+	berkas/xlsx.c \
+	berkas/xls.c \
+	berkas/html.c \
+	berkas/xmlss.c
 
 # Source files di subdirektori formula/
 SRC_FORMULA = formula/teks.c \
-              formula/waktu.c \
-              formula/hitung.c \
-              formula/statistik.c \
-              formula/keuangan.c \
-              formula/logika.c \
-              formula/pencarian.c \
-              formula/konversi.c
+	formula/waktu.c \
+	formula/hitung.c \
+	formula/statistik.c \
+	formula/keuangan.c \
+	formula/logika.c \
+	formula/pencarian.c \
+	formula/konversi.c
 
 # Semua source files
 SRCS = $(SRC_ROOT) $(SRC_BERKAS) $(SRC_FORMULA)
@@ -78,7 +78,7 @@ formula/%.o: formula/%.c $(HEADER)
 # ============================================================
 
 clean:
-	rm -f $(OBJS)
+	rm -f $(OBJS) $(TARGET)
 
 # ============================================================
 # Dependencies

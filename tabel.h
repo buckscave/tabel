@@ -47,8 +47,8 @@
  * ============================================================ */
 #define NAMA_APLIKASI        "TABEL 3.0"
 #define MAKS_GLYPH           8
-#define MAKS_KOLOM           52
-#define MAKS_BARIS           10000
+#define MAKS_KOLOM           702
+#define MAKS_BARIS           100000
 #define MAKS_TEKS            1024
 #define MAKS_SELEKSI         1024
 #define UNDO_MAKS            4096
@@ -581,8 +581,12 @@ void input_push_event(const InputEvent *ev);
 int input_inject_sequence(const char *seq, int len);
 int setup_signals(void);
 
+/* Helper Kolom */
+void kolom_ke_nama(int kolom, char *buf, size_t ukuran);
+
 /* Buffer Management */
 struct buffer_tabel *buat_buffer(int baris, int kolom);
+struct buffer_tabel *buat_buffer_satu_lembar(int baris, int kolom);
 struct buffer_tabel *duplikat_buffer(const struct buffer_tabel *src);
 void bebas_buffer(struct buffer_tabel *buf);
 void set_buffer_aktif(int idx);
@@ -599,6 +603,7 @@ void hapus_lembar_dari_buffer(struct buffer_tabel *buf, int idx);
 void set_lembar_aktif(struct buffer_tabel *buf, int idx);
 void sinkronkan_pointer_lembar_aktif(struct buffer_tabel *buf);
 void rename_lembar(struct buffer_tabel *buf, int idx, const char *nama);
+int ubah_ukuran_lembar(struct lembar_tabel *lem, int baris_baru, int kolom_baru);
 
 /* Jendela */
 void inisialisasi_window_manager(void);
@@ -1156,9 +1161,11 @@ int buka_csv(struct buffer_tabel **pbuf, const char *fn);
 int simpan_sql(const struct buffer_tabel *buf, const char *fn);
 int buka_sql(struct buffer_tabel **pbuf, const char *fn);
 
-/* I/O DB (Biner) */
+/* I/O DB (Biner + SQLite) */
 int simpan_db(const struct buffer_tabel *buf, const char *fn);
 int buka_db(struct buffer_tabel **pbuf, const char *fn);
+int buka_db_native(struct buffer_tabel **pbuf, const char *fn);
+int buka_sqlite(struct buffer_tabel **pbuf, const char *fn);
 
 /* I/O TSV */
 int simpan_tsv(const struct buffer_tabel *buf, const char *fn);

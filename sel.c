@@ -78,6 +78,7 @@ void ubah_perataan_sel(struct buffer_tabel *buf, perataan_teks p) {
 void ubah_perataan_area(struct buffer_tabel *buf, perataan_teks p) {
     int x1, y1, x2, y2;
     int r, c;
+    char nama_kol1[4], nama_kol2[4];
 
     if (seleksi_aktif) {
         x1 = seleksi_x1 < seleksi_x2 ? seleksi_x1 : seleksi_x2;
@@ -100,8 +101,10 @@ void ubah_perataan_area(struct buffer_tabel *buf, perataan_teks p) {
         }
     }
     buf->cfg.kotor = 1;
+    kolom_ke_nama(x1, nama_kol1, sizeof(nama_kol1));
+    kolom_ke_nama(x2, nama_kol2, sizeof(nama_kol2));
     snprintf(pesan_status, sizeof(pesan_status),
-             "Perataan diubah (%c%d:%c%d)", 'A' + x1, y1 + 1, 'A' + x2, y2 + 1);
+             "Perataan diubah (%s%d:%s%d)", nama_kol1, y1 + 1, nama_kol2, y2 + 1);
 }
 
 /* ============================================================
@@ -216,6 +219,7 @@ void eksekusi_warna_teks(struct buffer_tabel *buf, const char *cmd) {
     int r, c;
     warna_depan wd_terpilih = WARNAD_DEFAULT;
     warna_latar wl_terpilih = WARNAL_DEFAULT;
+    char nama_kol1[4], nama_kol2[4];
 
     (void)cmd;
 
@@ -256,11 +260,13 @@ void eksekusi_warna_teks(struct buffer_tabel *buf, const char *cmd) {
     }
 
     buf->cfg.kotor = 1;
+    kolom_ke_nama(x1, nama_kol1, sizeof(nama_kol1));
+    kolom_ke_nama(x2, nama_kol2, sizeof(nama_kol2));
     snprintf(pesan_status, sizeof(pesan_status),
-             "Warna teks: %s/%s (%c%d:%c%d)",
+             "Warna teks: %s/%s (%s%d:%s%d)",
              warna_nama_depan(wd_terpilih),
              warna_nama_latar(wl_terpilih),
-             'A' + x1, y1 + 1, 'A' + x2, y2 + 1);
+             nama_kol1, y1 + 1, nama_kol2, y2 + 1);
 }
 
 /* ============================================================
@@ -272,6 +278,7 @@ void eksekusi_border(struct buffer_tabel *buf, const char *cmd) {
     int r, c;
     warna_depan wd_terpilih;
     warna_latar wl_terpilih;
+    char nama_kol1[4], nama_kol2[4];
 
     if (seleksi_aktif) {
         x1 = seleksi_x1 < seleksi_x2 ? seleksi_x1 : seleksi_x2;
@@ -335,8 +342,10 @@ void eksekusi_border(struct buffer_tabel *buf, const char *cmd) {
 
     buf->cfg.kotor = 1;
 
-    snprintf(pesan_status, sizeof(pesan_status), "Border: %s (%c%d:%c%d)",
-             cmd, 'A' + x1, y1 + 1, 'A' + x2, y2 + 1);
+    kolom_ke_nama(x1, nama_kol1, sizeof(nama_kol1));
+    kolom_ke_nama(x2, nama_kol2, sizeof(nama_kol2));
+    snprintf(pesan_status, sizeof(pesan_status), "Border: %s (%s%d:%s%d)",
+             cmd, nama_kol1, y1 + 1, nama_kol2, y2 + 1);
 }
 
 /* ============================================================
@@ -389,6 +398,7 @@ void eksekusi_gabung(struct buffer_tabel *buf) {
     int x1, y1, x2, y2;
     int ax, ay, lbr, tgi;
     char gabungan[MAKS_TEKS];
+    char nama_kol1[4], nama_kol2[4];
     int r, c, yy, xx;
 
     if (seleksi_aktif) {
@@ -458,9 +468,11 @@ void eksekusi_gabung(struct buffer_tabel *buf) {
     buf->cfg.aktif_x = ax;
     buf->cfg.aktif_y = ay;
 
+    kolom_ke_nama(ax, nama_kol1, sizeof(nama_kol1));
+    kolom_ke_nama(ax + lbr - 1, nama_kol2, sizeof(nama_kol2));
     snprintf(pesan_status, sizeof(pesan_status),
-             "Gabung %c%d-%c%d", 'A' + ax, ay + 1,
-             'A' + (ax + lbr - 1), ay + tgi);
+             "Gabung %s%d-%s%d", nama_kol1, ay + 1,
+             nama_kol2, ay + tgi);
 
     buf->cfg.kotor = 1;
 }
@@ -468,6 +480,7 @@ void eksekusi_gabung(struct buffer_tabel *buf) {
 void eksekusi_urai_gabung(struct buffer_tabel *buf) {
     int ax = buf->cfg.aktif_x;
     int ay = buf->cfg.aktif_y;
+    char nama_kol[4];
 
     if (!apakah_ada_gabung_buf(buf, ax, ay)) {
         salin_str_aman(pesan_status, "Sel tidak digabung", sizeof(pesan_status));
@@ -480,8 +493,9 @@ void eksekusi_urai_gabung(struct buffer_tabel *buf) {
     hapus_blok_gabung_buf(buf, ax, ay);
     dorong_undo_teks(buf, ax, ay, "", buf->isi[ay][ax]);
 
+    kolom_ke_nama(ax, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status),
-             "Urai gabung %c%d", 'A' + ax, ay + 1);
+             "Urai gabung %s%d", nama_kol, ay + 1);
 
     buf->cfg.kotor = 1;
 }
@@ -502,18 +516,21 @@ void seleksi_baris_penuh_aktif(struct buffer_tabel *buf) {
 }
 
 void seleksi_kolom_penuh_aktif(struct buffer_tabel *buf) {
+    char nama_kol[4];
     seleksi_x1 = buf->cfg.aktif_x;
     seleksi_y1 = 0;
     seleksi_x2 = buf->cfg.aktif_x;
     seleksi_y2 = buf->cfg.baris - 1;
     seleksi_aktif = 1;
     sedang_memilih = 0;
+    kolom_ke_nama(buf->cfg.aktif_x, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status), 
-             "Seleksi Kolom %c", 'A' + buf->cfg.aktif_x);
+             "Seleksi Kolom %s", nama_kol);
 }
 
 void toggle_seleksi_random(struct buffer_tabel *buf, int x, int y) {
     int i, j;
+    char nama_kol[4];
 
     (void)buf;
 
@@ -524,8 +541,9 @@ void toggle_seleksi_random(struct buffer_tabel *buf, int x, int y) {
                 seleksi_random_y[j] = seleksi_random_y[j + 1];
             }
             seleksi_random--;
+            kolom_ke_nama(x, nama_kol, sizeof(nama_kol));
             snprintf(pesan_status, sizeof(pesan_status),
-                     "Unselect %c%d", 'A' + x, y + 1);
+                     "Unselect %s%d", nama_kol, y + 1);
             return;
         }
     }
@@ -533,8 +551,9 @@ void toggle_seleksi_random(struct buffer_tabel *buf, int x, int y) {
         seleksi_random_x[seleksi_random] = x;
         seleksi_random_y[seleksi_random] = y;
         seleksi_random++;
+        kolom_ke_nama(x, nama_kol, sizeof(nama_kol));
         snprintf(pesan_status, sizeof(pesan_status),
-                 "Select %c%d", 'A' + x, y + 1);
+                 "Select %s%d", nama_kol, y + 1);
     }
 }
 
@@ -550,6 +569,7 @@ void salin_sel(struct buffer_tabel *buf) {
 void salin_area(struct buffer_tabel *buf) {
     int x1, y1, x2, y2;
     int r, c;
+    char nama_kol1[4], nama_kol2[4];
 
     if (seleksi_aktif) {
         x1 = seleksi_x1; y1 = seleksi_y1;
@@ -580,8 +600,10 @@ void salin_area(struct buffer_tabel *buf) {
         }
     }
 
+    kolom_ke_nama(x1, nama_kol1, sizeof(nama_kol1));
+    kolom_ke_nama(x2, nama_kol2, sizeof(nama_kol2));
     snprintf(pesan_status, sizeof(pesan_status),
-             "Menyalin %c%d-%c%d", 'A' + x1, y1 + 1, 'A' + x2, y2 + 1);
+             "Menyalin %s%d-%s%d", nama_kol1, y1 + 1, nama_kol2, y2 + 1);
 }
 
 void salin_baris_penuh(struct buffer_tabel *buf, int row) {
@@ -603,6 +625,7 @@ void salin_baris_penuh(struct buffer_tabel *buf, int row) {
 
 void salin_kolom_penuh(struct buffer_tabel *buf, int col) {
     int r;
+    char nama_kol[4];
     if (!buf || col < 0 || col >= buf->cfg.kolom) return;
 
     klip_x1 = klip_x2 = col;
@@ -614,8 +637,9 @@ void salin_kolom_penuh(struct buffer_tabel *buf, int col) {
     for (r = 0; r < buf->cfg.baris; r++) {
         salin_str_aman(papan_klip_area[r][col], buf->isi[r][col], MAKS_TEKS);
     }
+    kolom_ke_nama(col, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status),
-             "Menyalin kolom %c", 'A' + col);
+             "Menyalin kolom %s", nama_kol);
 }
 
 void potong_area(struct buffer_tabel *buf) {
@@ -633,10 +657,12 @@ void potong_area(struct buffer_tabel *buf) {
 }
 
 void potong_kolom_penuh(struct buffer_tabel *buf) {
+    char nama_kol[4];
     salin_kolom_penuh(buf, buf->cfg.aktif_x);
     bersihkan_kolom_aktif(buf);
+    kolom_ke_nama(buf->cfg.aktif_x, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status), 
-             "Cut Kolom %c", 'A' + buf->cfg.aktif_x);
+             "Cut Kolom %s", nama_kol);
 }
 
 void potong_baris_penuh(struct buffer_tabel *buf) {
@@ -803,6 +829,7 @@ void tempel_isi_ke_seleksi(struct buffer_tabel *buf) {
 void swap_kolom(struct buffer_tabel *buf, int col, int arah) {
     int target, r, tmpw;
     char tmp[MAKS_TEKS];
+    char nama_kol1[4], nama_kol2[4];
 
     target = col + arah;
     if (!buf || col < 0 || target < 0 || 
@@ -820,8 +847,10 @@ void swap_kolom(struct buffer_tabel *buf, int col, int arah) {
 
     buf->cfg.aktif_x = target;
     buf->cfg.kotor = 1;
+    kolom_ke_nama(col, nama_kol1, sizeof(nama_kol1));
+    kolom_ke_nama(target, nama_kol2, sizeof(nama_kol2));
     snprintf(pesan_status, sizeof(pesan_status),
-             "Swap kolom %c <-> %c", 'A' + col, 'A' + target);
+             "Swap kolom %s <-> %s", nama_kol1, nama_kol2);
 }
 
 void swap_baris(struct buffer_tabel *buf, int row, int arah) {
@@ -1046,12 +1075,14 @@ void hapus_sel_atau_area(struct buffer_tabel *buf) {
 
 void bersihkan_kolom_aktif(struct buffer_tabel *buf) {
     int r;
+    char nama_kol[4];
     for (r = 0; r < buf->cfg.baris; r++) {
         buf->isi[r][buf->cfg.aktif_x][0] = '\0';
     }
     buf->cfg.kotor = 1;
+    kolom_ke_nama(buf->cfg.aktif_x, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status), 
-             "Kolom %c dibersihkan", 'A' + buf->cfg.aktif_x);
+             "Kolom %s dibersihkan", nama_kol);
 }
 
 void bersihkan_baris_aktif(struct buffer_tabel *buf) {
@@ -1070,6 +1101,7 @@ void bersihkan_baris_aktif(struct buffer_tabel *buf) {
 
 void sisip_kolom_setelah(struct buffer_tabel *buf) {
     int c, r;
+    char nama_kol[4];
 
     if (buf->cfg.kolom >= MAKS_KOLOM) return;
 
@@ -1084,12 +1116,14 @@ void sisip_kolom_setelah(struct buffer_tabel *buf) {
 
     buf->cfg.kolom++;
     buf->cfg.kotor = 1;
+    kolom_ke_nama(buf->cfg.aktif_x, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status), 
-             "Sisip kolom setelah %c", 'A' + buf->cfg.aktif_x);
+             "Sisip kolom setelah %s", nama_kol);
 }
 
 void sisip_kolom_sebelum(struct buffer_tabel *buf) {
     int c, r;
+    char nama_kol[4];
 
     if (buf->cfg.kolom >= MAKS_KOLOM) return;
 
@@ -1104,8 +1138,9 @@ void sisip_kolom_sebelum(struct buffer_tabel *buf) {
 
     buf->cfg.kolom++;
     buf->cfg.kotor = 1;
+    kolom_ke_nama(buf->cfg.aktif_x, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status), 
-             "Sisip kolom sebelum %c", 'A' + buf->cfg.aktif_x);
+             "Sisip kolom sebelum %s", nama_kol);
 }
 
 void sisip_baris_setelah(struct buffer_tabel *buf) {
@@ -1154,6 +1189,7 @@ void sisip_baris_sebelum(struct buffer_tabel *buf) {
 
 void hapus_kolom_aktif(struct buffer_tabel *buf) {
     int c, r;
+    char nama_kol[4];
 
     if (buf->cfg.kolom <= 1) return;
 
@@ -1168,8 +1204,9 @@ void hapus_kolom_aktif(struct buffer_tabel *buf) {
     if (buf->cfg.aktif_x >= buf->cfg.kolom) 
         buf->cfg.aktif_x = buf->cfg.kolom - 1;
     buf->cfg.kotor = 1;
+    kolom_ke_nama(buf->cfg.aktif_x, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status), 
-             "Hapus kolom %c", 'A' + buf->cfg.aktif_x);
+             "Hapus kolom %s", nama_kol);
 }
 
 void hapus_baris_aktif(struct buffer_tabel *buf) {
@@ -1272,7 +1309,7 @@ int lakukan_cari(struct buffer_tabel *buf, const char *query) {
     lem->indeks_hasil = 0;
     salin_str_aman(lem->query_cari, query, MAKS_TEKS);
 
-    for (r = 0; r < buf->cfg.baris && lem->jumlah_hasil < MAKS_BARIS * MAKS_KOLOM; r++) {
+    for (r = 0; r < buf->cfg.baris && lem->jumlah_hasil < lem->baris * lem->kolom; r++) {
         for (c = 0; c < buf->cfg.kolom; c++) {
             if (strstr(buf->isi[r][c], query) != NULL) {
                 lem->hasil_cari_x[lem->jumlah_hasil] = c;

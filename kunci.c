@@ -251,11 +251,13 @@ static int parse_motion_target(const char *s, int *x, int *y) {
 
 static void eksekusi_motion_goto(struct buffer_tabel *buf, const char *target) {
     int tx, ty;
+    char nama_kol[4];
     if (parse_motion_target(target, &tx, &ty) > 0) {
         buf->cfg.aktif_x = tx;
         buf->cfg.aktif_y = ty;
+        kolom_ke_nama(tx, nama_kol, sizeof(nama_kol));
         snprintf(pesan_status, sizeof(pesan_status),
-                 "Goto %c%d", 'A' + tx, ty + 1);
+                 "Goto %s%d", nama_kol, ty + 1);
     } else {
         snprintf(pesan_status, sizeof(pesan_status),
                  "Target goto tidak valid");
@@ -427,6 +429,9 @@ void mode_edit_berantai(struct buffer_tabel *buf, int x_mulai,
     int i;
     int visual_offset;
     int tombol;
+    char nama_kol[4];
+    char nama_kol1[4];
+    char nama_kol2[4];
 
     /* Dapatkan batas jendela aktif untuk posisi input bar */
     int win_x = jendela_aktif ? jendela_aktif->rect.x : 0;
@@ -440,10 +445,12 @@ void mode_edit_berantai(struct buffer_tabel *buf, int x_mulai,
 
         if (inisial == '=') {
             if (seleksi_aktif) {
+                kolom_ke_nama(seleksi_x1, nama_kol1, sizeof(nama_kol1));
+                kolom_ke_nama(seleksi_x2, nama_kol2, sizeof(nama_kol2));
                 snprintf(buffer_edit, sizeof(buffer_edit),
-                         "=(%c%d:%c%d)",
-                         'A' + seleksi_x1, seleksi_y1 + 1,
-                         'A' + seleksi_x2, seleksi_y2 + 1);
+                         "=(%s%d:%s%d)",
+                         nama_kol1, seleksi_y1 + 1,
+                         nama_kol2, seleksi_y2 + 1);
                 panjang = (int)strlen(buffer_edit);
                 kursor = panjang;
                 inisial = 0;
@@ -467,7 +474,8 @@ void mode_edit_berantai(struct buffer_tabel *buf, int x_mulai,
             inisial = 0;
         }
 
-        snprintf(label, sizeof(label), "Kolom %c%d: ", 'A' + x, y + 1);
+        kolom_ke_nama(x, nama_kol, sizeof(nama_kol));
+        snprintf(label, sizeof(label), "Kolom %s%d: ", nama_kol, y + 1);
         pos_x_input = win_x + 2 + (int)strlen(label);
 
         /* Full redraw input bar dengan warna putih untuk mode edit */
@@ -569,12 +577,13 @@ void mode_edit_berantai(struct buffer_tabel *buf, int x_mulai,
             teks_norm[j] = '\0';
             
             /* Format: "Kolom Xn: isi" atau "Kolom Xn: [KOSONG]" */
+            kolom_ke_nama(x, nama_kol, sizeof(nama_kol));
             if (teks_sel[0] == '\0') {
                 snprintf(teks_redraw, sizeof(teks_redraw), 
-                        "Kolom %c%d: [KOSONG]", 'A' + x, y + 1);
+                        "Kolom %s%d: [KOSONG]", nama_kol, y + 1);
             } else {
                 snprintf(teks_redraw, sizeof(teks_redraw), 
-                        "Kolom %c%d: %s", 'A' + x, y + 1, teks_norm);
+                        "Kolom %s%d: %s", nama_kol, y + 1, teks_norm);
             }
             
             /* Clear baris dan tulis dengan warna abu-abu */
@@ -1353,7 +1362,9 @@ static int kunci_satu_huruf(struct buffer_tabel *cur,
         minta_nama_berkas(nama, sizeof(nama), "Buka: ");
         if (strlen(nama) > 0) {
             baru = NULL;
-            ok = buka_txt(&baru, nama);
+            /* Pilih parser yang tepat berdasarkan ekstensi,
+             * jangan panggil buka_txt dulu karena bisa salah parse
+             * dan membuang memori untuk format yang punya parser sendiri */
             if (strstr(nama, ".csv")) ok = buka_csv(&baru, nama);
             else if (strstr(nama, ".tbl")) ok = buka_tbl(&baru, nama);
             else if (strstr(nama, ".sql")) ok = buka_sql(&baru, nama);
@@ -1366,6 +1377,8 @@ static int kunci_satu_huruf(struct buffer_tabel *cur,
             else if (strstr(nama, ".html")) ok = buka_html(&baru, nama);
             else if (strstr(nama, ".htm")) ok = buka_html(&baru, nama);
             else if (strstr(nama, ".json")) ok = buka_json(&baru, nama);
+            else if (strstr(nama, ".tsv")) ok = buka_tsv(&baru, nama);
+            else ok = buka_txt(&baru, nama);
             
             if (ok == 0) {
                 if (getcwd(cwd, sizeof(cwd))) {
