@@ -56,6 +56,15 @@ STRUKTUR
   I                            : Sisip kolom sebelum
   o                            : Sisip baris setelah
   O                            : Sisip baris sebelum
+  d c                          : Hapus kolom
+  d r                          : Hapus baris
+
+STICKY (FREEZE PANE)
+--------------------
+  Alt + t                      : Toggle sticky baris (freeze rows)
+  Ctrl + t                     : Toggle sticky kolom (freeze columns)
+  Sticky membuat baris/kolom tetap terlihat saat scroll.
+  Posisi kursor saat toggle menentukan batas sticky.
 
 TAB/BUFFER
 ----------

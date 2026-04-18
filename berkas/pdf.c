@@ -732,8 +732,7 @@ static void render_header_kolom(struct content_builder *cb,
     for (c = kolom_mulai; c <= kolom_akhir; c++) {
         double kolom_lebar = (double)buf->lebar_kolom[c] * cfg->skala_sel;
 
-        label[0] = (char)('A' + c);
-        label[1] = '\0';
+        kolom_ke_nama(c, label, sizeof(label));
 
         cb_text(cb, x + kolom_lebar / 2 - 3, y - cfg->ukuran_font,
                 label, cfg->ukuran_font, 0, 0, 0);

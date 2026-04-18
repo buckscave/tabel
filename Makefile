@@ -28,6 +28,8 @@ SRC_ROOT = tabel.c \
 
 # Source files di subdirektori berkas/
 SRC_BERKAS = berkas/tbl.c \
+	berkas/csv.c \
+	berkas/sql.c \
 	berkas/json.c \
 	berkas/pdf.c \
 	berkas/ods.c \
@@ -95,6 +97,8 @@ jendela.o: jendela.c $(HEADER)
 form.o: form.c $(HEADER)
 
 berkas/tbl.o: berkas/tbl.c $(HEADER)
+berkas/csv.o: berkas/csv.c $(HEADER)
+berkas/sql.o: berkas/sql.c $(HEADER)
 berkas/json.o: berkas/json.c $(HEADER)
 berkas/pdf.o: berkas/pdf.c $(HEADER)
 berkas/ods.o: berkas/ods.c $(HEADER)

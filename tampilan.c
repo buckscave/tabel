@@ -958,31 +958,33 @@ static void gambar_bar_input_window(const struct buffer_tabel *buf,
                                     struct rect area)
 {
     int y = area.y + 2;
-    char kol;
     int bar;
     const char *teks;
     char teks_norm[MAKS_TEKS * 2];
     char kiri[MAKS_TEKS * 2];
     int j = 0, i;
 
-    kol = (char)('A' + buf->cfg.aktif_x);
-    bar = buf->cfg.aktif_y + 1;
-    teks = buf->isi[buf->cfg.aktif_y][buf->cfg.aktif_x];
+    {
+        char kol_buf[4];
+        kolom_ke_nama(buf->cfg.aktif_x, kol_buf, sizeof(kol_buf));
+        bar = buf->cfg.aktif_y + 1;
+        teks = buf->isi[buf->cfg.aktif_y][buf->cfg.aktif_x];
 
-    for (i = 0; teks[i] && j < (int)sizeof(teks_norm) - 2; i++) {
-        if (teks[i] == '\n') {
-            teks_norm[j++] = '\\';
-            teks_norm[j++] = 'n';
-        } else {
-            teks_norm[j++] = teks[i];
+        for (i = 0; teks[i] && j < (int)sizeof(teks_norm) - 2; i++) {
+            if (teks[i] == '\n') {
+                teks_norm[j++] = '\\';
+                teks_norm[j++] = 'n';
+            } else {
+                teks_norm[j++] = teks[i];
+            }
         }
-    }
-    teks_norm[j] = '\0';
+        teks_norm[j] = '\0';
 
-    if (teks[0] == '\0') {
-        snprintf(kiri, sizeof(kiri), "Kolom %c%d: [KOSONG]", kol, bar);
-    } else {
-        snprintf(kiri, sizeof(kiri), "Kolom %c%d: %s", kol, bar, teks_norm);
+        if (teks[0] == '\0') {
+            snprintf(kiri, sizeof(kiri), "Kolom %s%d: [KOSONG]", kol_buf, bar);
+        } else {
+            snprintf(kiri, sizeof(kiri), "Kolom %s%d: %s", kol_buf, bar, teks_norm);
+        }
     }
 
     /* Normal mode: teks abu-abu */
@@ -1004,8 +1006,7 @@ static void gambar_label_kolom_window(const struct buffer_tabel *buf,
 
     for (c = kolom_mulai; c <= kolom_akhir; c++) {
         char ch[4];
-        ch[0] = (char)('A' + c);
-        ch[1] = '\0';
+        kolom_ke_nama(c, ch, sizeof(ch));
 
         if (c == buf->cfg.aktif_x) {
             warna_set_buffer(WARNAD_KUNING, WARNAL_DEFAULT);
@@ -1083,16 +1084,23 @@ static void gambar_bar_status_window(const struct buffer_tabel *buf,
         nama_lembar = buf->lembar[buf->lembar_aktif]->nama;
     }
 
-    /* Status kanan: tambahkan info lembar "Lembar 1/3" */
-    snprintf(kanan, sizeof(kanan),
-             " %s %s %s %s Lembar:%d/%d %s Kl:%d/%d Br:%d/%d %s Lb:%d Tg:%d %s ? ",
-             buf->cfg.enkoding, V, ext, V,
-             buf->lembar_aktif + 1, buf->jumlah_lembar,
-             V,
-             buf->cfg.aktif_x + 1, buf->cfg.kolom,
-             buf->cfg.aktif_y + 1, buf->cfg.baris, V,
-             buf->lebar_kolom[buf->cfg.aktif_x],
-             buf->tinggi_baris[buf->cfg.aktif_y], V);
+    /* Status kanan: tambahkan info lembar "Lembar 1/3" dan sticky */
+    {
+        char sticky_info[32] = "";
+        if (buf->cfg.sticky_baris > 0 || buf->cfg.sticky_kolom > 0) {
+            snprintf(sticky_info, sizeof(sticky_info), " S:%d,%d",
+                     buf->cfg.sticky_baris, buf->cfg.sticky_kolom);
+        }
+        snprintf(kanan, sizeof(kanan),
+                 " %s%s %s %s %s Lembar:%d/%d %s Kl:%d/%d Br:%d/%d %s Lb:%d Tg:%d %s ? ",
+                 sticky_info, buf->cfg.enkoding, V, ext, V,
+                 buf->lembar_aktif + 1, buf->jumlah_lembar,
+                 V,
+                 buf->cfg.aktif_x + 1, buf->cfg.kolom,
+                 buf->cfg.aktif_y + 1, buf->cfg.baris, V,
+                 buf->lebar_kolom[buf->cfg.aktif_x],
+                 buf->tinggi_baris[buf->cfg.aktif_y], V);
+    }
 
     panjang_kanan_asli = lebar_tampilan_string_utf8(kanan);
     lebar_tampil_kanan = (panjang_kanan_asli > area.w) ?
@@ -1333,6 +1341,105 @@ static void gambar_isi_sel_lihat(const struct buffer_tabel *buf,
 
         taruh_teks_elipsis(x0 + offset, y0 + 1 + baris, line, lebar_vis);
         baris++;
+    }
+}
+
+/* Outline yang mempertimbangkan sticky kolom/baris */
+static void gambar_kotak_outline_sticky(const struct buffer_tabel *buf,
+    int x_awal, int y_awal, int ks, int ke, int bs, int be,
+    int sk_end, int sb_end,
+    int x1, int y1, int x2, int y2)
+{
+    int sk_ada = (sk_end >= 0 && sk_end < ks);
+    int sb_ada = (sb_end >= 0 && sb_end < bs);
+    int lebar_sk = 0, tinggi_sb = 0;
+    int x_scroll, y_scroll;
+    int i;
+
+    /* Hitung lebar sticky kolom dan tinggi sticky baris */
+    if (sk_ada) {
+        for (i = 0; i <= sk_end; i++) lebar_sk += buf->lebar_kolom[i] + 1;
+        lebar_sk += 1;  /* separator */
+    }
+    if (sb_ada) {
+        for (i = 0; i <= sb_end; i++) tinggi_sb += buf->tinggi_baris[i] + 1;
+        tinggi_sb += 1;  /* separator */
+    }
+
+    x_scroll = x_awal + lebar_sk;
+    y_scroll = y_awal + tinggi_sb;
+
+    /* Fungsi helper untuk menghitung posisi x layar dari kolom logis */
+    /* Kolom 0..sk_end -> x_awal base, kolom ks..ke -> x_scroll base */
+    {
+        int minx = x1 < x2 ? x1 : x2;
+        int maxx = x1 > x2 ? x1 : x2;
+        int miny = y1 < y2 ? y1 : y2;
+        int maxy = y1 > y2 ? y1 : y2;
+        int px1, px2, py1, py2, cx, cy;
+
+        /* Cek visibilitas */
+        if (maxx < 0 || minx > ke || maxy < 0 || miny > be) {
+            return;
+        }
+
+        /* Hitung px1 (posisi x kiri) */
+        if (sk_ada && minx <= sk_end) {
+            cx = x_awal;
+            for (i = 0; i < minx; i++) cx += buf->lebar_kolom[i] + 1;
+        } else {
+            cx = x_scroll;
+            for (i = ks; i < minx; i++) cx += buf->lebar_kolom[i] + 1;
+        }
+        px1 = cx;
+
+        /* Hitung px2 (posisi x kanan) */
+        if (sk_ada && maxx <= sk_end) {
+            cx = x_awal;
+            for (i = 0; i <= maxx; i++) cx += buf->lebar_kolom[i] + 1;
+        } else {
+            cx = x_scroll;
+            for (i = ks; i <= maxx; i++) cx += buf->lebar_kolom[i] + 1;
+        }
+        px2 = cx;
+
+        /* Hitung py1 (posisi y atas) */
+        if (sb_ada && miny <= sb_end) {
+            cy = y_awal;
+            for (i = 0; i < miny; i++) cy += buf->tinggi_baris[i] + 1;
+        } else {
+            cy = y_scroll;
+            for (i = bs; i < miny; i++) cy += buf->tinggi_baris[i] + 1;
+        }
+        py1 = cy;
+
+        /* Hitung py2 (posisi y bawah) */
+        if (sb_ada && maxy <= sb_end) {
+            cy = y_awal;
+            for (i = 0; i <= maxy; i++) cy += buf->tinggi_baris[i] + 1;
+        } else {
+            cy = y_scroll;
+            for (i = bs; i <= maxy; i++) cy += buf->tinggi_baris[i] + 1;
+        }
+        py2 = cy;
+
+        /* Gambar outline */
+        taruh_teks(px1, py1, TL);
+        for (i = px1 + 1; i < px2; i++) {
+            taruh_teks(i, py1, H);
+        }
+        taruh_teks(px2, py1, TR);
+
+        taruh_teks(px1, py2, BL);
+        for (i = px1 + 1; i < px2; i++) {
+            taruh_teks(i, py2, H);
+        }
+        taruh_teks(px2, py2, BR);
+
+        for (i = py1 + 1; i < py2; i++) {
+            taruh_teks(px1, i, V);
+            taruh_teks(px2, i, V);
+        }
     }
 }
 
@@ -1602,19 +1709,40 @@ static void hitung_viewport_window(const struct buffer_tabel *buf,
     int tinggi_tersedia;
     int lebar_tersedia;
     int c, x, r, y;
+    int sticky_k = cfg->sticky_kolom;
+    int sticky_b = cfg->sticky_baris;
+    int lebar_sk = 0;   /* Lebar yang dipakai sticky kolom */
+    int tinggi_sb = 0;  /* Tinggi yang dipakai sticky baris */
+    int i;
     /* Layout: border(1) + spasi(1) + nomor(digit) + spasi(1) = digit + 3 */
-    
+
     /* Hitung jumlah digit untuk nomor baris maksimum */
     while (max_baris >= 10) {
         digit++;
         max_baris /= 10;
     }
     padding_kiri = digit + 3;
-    
+
+    /* Hitung lebar yang dipakai sticky kolom */
+    if (sticky_k > 0 && sticky_k <= cfg->kolom) {
+        for (i = 0; i < sticky_k; i++) {
+            lebar_sk += buf->lebar_kolom[i] + 1;
+        }
+        lebar_sk += 1;  /* separator vertikal */
+    }
+
+    /* Hitung tinggi yang dipakai sticky baris */
+    if (sticky_b > 0 && sticky_b <= cfg->baris) {
+        for (i = 0; i < sticky_b; i++) {
+            tinggi_sb += buf->tinggi_baris[i] + 1;
+        }
+        tinggi_sb += 1;  /* separator horizontal */
+    }
+
     /* Account for topbar (1) + input bar (1) + column header (1) = 3 */
     /* But now topbar is per-window, so we need 4 lines from area.y */
-    tinggi_tersedia = area.h - 4;
-    lebar_tersedia = area.w - padding_kiri;
+    tinggi_tersedia = area.h - 4 - tinggi_sb;
+    lebar_tersedia = area.w - padding_kiri - lebar_sk;
 
     if (tinggi_tersedia < 1) {
         tinggi_tersedia = 1;
@@ -1867,6 +1995,9 @@ void render_jendela_spesifik(const struct buffer_tabel *buf,
     int r, c;
     int ax, ay, bx, by;
     int i;
+    int sticky_k = buf->cfg.sticky_kolom;
+    int sticky_b = buf->cfg.sticky_baris;
+    int sk_end, sb_end;  /* Batas akhir sticky yang terlihat */
 
     set_clip_rect(area.x, area.y, area.w, area.h);
 
@@ -1879,36 +2010,240 @@ void render_jendela_spesifik(const struct buffer_tabel *buf,
     hitung_viewport_window(buf, area, &x_awal, &y_awal, &lv, &tv,
                            &ks, &ke, &bs, &be);
 
-    gambar_label_kolom_window(buf, area, x_awal, y_awal, ks, ke);
-    gambar_nomor_baris_window(buf, area, y_awal, bs, be);
+    /* Hitung batas sticky yang terlihat */
+    sk_end = (sticky_k > 0 && sticky_k <= buf->cfg.kolom) ? sticky_k - 1 : -1;
+    sb_end = (sticky_b > 0 && sticky_b <= buf->cfg.baris) ? sticky_b - 1 : -1;
 
-    gambar_grid_cerdas(buf, x_awal, y_awal, ks, ke, bs, be);
+    /* ====== RENDERING STICKY + SCROLL ======
+     *
+     * Strategi: Render sticky dan scroll sebagai area terpisah
+     * dengan posisi x/y yang berbeda di layar.
+     *
+     * - Sticky kolom: dimulai dari x_awal, kolom 0..sk_end
+     * - Scroll kolom: dimulai dari x_awal + lebar_sticky_kolom, kolom ks..ke
+     * - Sticky baris: dimulai dari y_awal, baris 0..sb_end
+     * - Scroll baris: dimulai dari y_awal + tinggi_sticky_baris, baris bs..be
+     * - Separator digambar antara area sticky dan scroll
+     */
+    {
+        int sk_ada = (sk_end >= 0 && sk_end < ks);  /* Ada sticky kolom? */
+        int sb_ada = (sb_end >= 0 && sb_end < bs);  /* Ada sticky baris? */
+        int lebar_sk = 0;   /* Lebar layar untuk sticky kolom */
+        int tinggi_sb = 0;  /* Tinggi layar untuk sticky baris */
+        int x_scroll, y_scroll;  /* Posisi awal area scroll */
+        int sc, sr;
 
-    for (r = bs; r <= be; r++) {
-        for (c = ks; c <= ke; c++) {
-            gambar_isi_sel_lihat(buf, x_awal, y_awal, ks, bs, c, r);
+        /* Hitung lebar sticky kolom di layar */
+        if (sk_ada) {
+            for (sc = 0; sc <= sk_end; sc++) {
+                lebar_sk += buf->lebar_kolom[sc] + 1;
+            }
+            /* Tambah 1 untuk separator */
+            lebar_sk += 1;
+        }
+
+        /* Hitung tinggi sticky baris di layar */
+        if (sb_ada) {
+            for (sr = 0; sr <= sb_end; sr++) {
+                tinggi_sb += buf->tinggi_baris[sr] + 1;
+            }
+            /* Tambah 1 untuk separator */
+            tinggi_sb += 1;
+        }
+
+        /* Posisi awal area scroll */
+        x_scroll = x_awal + lebar_sk;
+        y_scroll = y_awal + tinggi_sb;
+
+        /* ====== GAMBAR LABEL KOLOM ====== */
+        /* Clear header line sekali saja */
+        {
+            int y_hdr = (y_awal + (sb_ada ? tinggi_sb : 0)) - 1;
+            warna_set_buffer(WARNAD_DEFAULT, WARNAL_DEFAULT);
+            isi_garis_h(area.x + 1, area.x + area.w, y_hdr);
+        }
+        /* Label kolom sticky */
+        if (sk_ada) {
+            int y_hdr2 = (y_awal + (sb_ada ? tinggi_sb : 0)) - 1;
+            int x_lbl = x_awal + 1;
+            for (c = 0; c <= sk_end; c++) {
+                char ch[4];
+                kolom_ke_nama(c, ch, sizeof(ch));
+                if (c == buf->cfg.aktif_x) {
+                    warna_set_buffer(WARNAD_KUNING, WARNAL_DEFAULT);
+                } else {
+                    warna_set_buffer(WARNAD_ABU, WARNAL_DEFAULT);
+                }
+                taruh_teks(x_lbl + buf->lebar_kolom[c] / 2, y_hdr2, ch);
+                x_lbl += buf->lebar_kolom[c] + 1;
+            }
+        }
+        /* Label kolom scroll */
+        {
+            int y_hdr3 = (y_awal + (sb_ada ? tinggi_sb : 0)) - 1;
+            int x_lbl2 = x_scroll + 1;
+            for (c = ks; c <= ke; c++) {
+                char ch[4];
+                kolom_ke_nama(c, ch, sizeof(ch));
+                if (c == buf->cfg.aktif_x) {
+                    warna_set_buffer(WARNAD_KUNING, WARNAL_DEFAULT);
+                } else {
+                    warna_set_buffer(WARNAD_ABU, WARNAL_DEFAULT);
+                }
+                taruh_teks(x_lbl2 + buf->lebar_kolom[c] / 2, y_hdr3, ch);
+                x_lbl2 += buf->lebar_kolom[c] + 1;
+            }
+        }
+
+        /* ====== GAMBAR NOMOR BARIS ====== */
+        /* Nomor baris sticky */
+        if (sb_ada) {
+            gambar_nomor_baris_window(buf, area, y_awal, 0, sb_end);
+        }
+        /* Nomor baris scroll */
+        gambar_nomor_baris_window(buf, area, y_scroll, bs, be);
+
+        /* ====== GAMBAR GRID & ISI SEL ====== */
+
+        /* 1. Area sticky pojok (kolom 0..sk_end, baris 0..sb_end) */
+        if (sk_ada && sb_ada) {
+            gambar_grid_cerdas(buf, x_awal, y_awal, 0, sk_end, 0, sb_end);
+            for (sr = 0; sr <= sb_end; sr++) {
+                for (sc = 0; sc <= sk_end; sc++) {
+                    gambar_isi_sel_lihat(buf, x_awal, y_awal, 0, 0, sc, sr);
+                }
+            }
+            gambar_layer_border_smart(buf, x_awal, y_awal, 0, sk_end, 0, sb_end);
+        }
+
+        /* 2. Area sticky kolom x scroll baris (kolom 0..sk_end, baris bs..be) */
+        if (sk_ada) {
+            gambar_grid_cerdas(buf, x_awal, y_scroll, 0, sk_end, bs, be);
+            for (sr = bs; sr <= be; sr++) {
+                for (sc = 0; sc <= sk_end; sc++) {
+                    gambar_isi_sel_lihat(buf, x_awal, y_scroll, 0, bs, sc, sr);
+                }
+            }
+            gambar_layer_border_smart(buf, x_awal, y_scroll, 0, sk_end, bs, be);
+        }
+
+        /* 3. Area sticky baris x scroll kolom (kolom ks..ke, baris 0..sb_end) */
+        if (sb_ada) {
+            gambar_grid_cerdas(buf, x_scroll, y_awal, ks, ke, 0, sb_end);
+            for (sr = 0; sr <= sb_end; sr++) {
+                for (sc = ks; sc <= ke; sc++) {
+                    gambar_isi_sel_lihat(buf, x_scroll, y_awal, ks, 0, sc, sr);
+                }
+            }
+            gambar_layer_border_smart(buf, x_scroll, y_awal, ks, ke, 0, sb_end);
+        }
+
+        /* 4. Area scroll utama (kolom ks..ke, baris bs..be) */
+        gambar_grid_cerdas(buf, x_scroll, y_scroll, ks, ke, bs, be);
+        for (r = bs; r <= be; r++) {
+            for (c = ks; c <= ke; c++) {
+                gambar_isi_sel_lihat(buf, x_scroll, y_scroll, ks, bs, c, r);
+            }
+        }
+        gambar_layer_border_smart(buf, x_scroll, y_scroll, ks, ke, bs, be);
+
+        /* ====== SEPARATOR STICKY KOLOM (garis vertikal) ====== */
+        if (sk_ada) {
+            int sep_x = x_awal + lebar_sk - 1;  /* Posisi x separator */
+            warna_set_buffer(WARNAD_KUNING, WARNAL_DEFAULT);
+            /* Di area header kolom */
+            taruh_teks(sep_x, y_awal - 1, V);
+            /* Dari atas sampai bawah seluruh grid */
+            {
+                int py;
+                /* Area sticky baris */
+                if (sb_ada) {
+                    py = y_awal;
+                    for (sr = 0; sr <= sb_end; sr++) {
+                        int kh;
+                        taruh_teks(sep_x, py, V);
+                        for (kh = 0; kh < buf->tinggi_baris[sr]; kh++) {
+                            taruh_teks(sep_x, py + 1 + kh, V);
+                        }
+                        py += buf->tinggi_baris[sr] + 1;
+                    }
+                    /* Separator horizontal (di gambar nanti) menimpa posisi ini */
+                }
+                /* Area scroll baris */
+                {
+                    py = y_scroll;
+                    for (sr = bs; sr <= be; sr++) {
+                        int kh;
+                        taruh_teks(sep_x, py, V);
+                        for (kh = 0; kh < buf->tinggi_baris[sr]; kh++) {
+                            taruh_teks(sep_x, py + 1 + kh, V);
+                        }
+                        py += buf->tinggi_baris[sr] + 1;
+                    }
+                    taruh_teks(sep_x, py, V);
+                }
+            }
+        }
+
+        /* ====== SEPARATOR STICKY BARIS (garis horizontal) ====== */
+        if (sb_ada) {
+            int sep_y = y_awal + tinggi_sb - 1;  /* Posisi y separator */
+            warna_set_buffer(WARNAD_KUNING, WARNAL_DEFAULT);
+            /* Gambar garis horizontal sepanjang seluruh lebar grid */
+            {
+                int px;
+                /* Area sticky kolom */
+                if (sk_ada) {
+                    px = x_awal;
+                    for (sc = 0; sc <= sk_end; sc++) {
+                        int kw;
+                        taruh_teks(px, sep_y, H);
+                        for (kw = 0; kw < buf->lebar_kolom[sc]; kw++) {
+                            taruh_teks(px + 1 + kw, sep_y, H);
+                        }
+                        px += buf->lebar_kolom[sc] + 1;
+                    }
+                    taruh_teks(px, sep_y, H);
+                    px++;  /* Lewati separator vertikal */
+                } else {
+                    px = x_awal;
+                }
+                /* Area scroll kolom */
+                {
+                    for (c = ks; c <= ke; c++) {
+                        int kw;
+                        taruh_teks(px, sep_y, H);
+                        for (kw = 0; kw < buf->lebar_kolom[c]; kw++) {
+                            taruh_teks(px + 1 + kw, sep_y, H);
+                        }
+                        px += buf->lebar_kolom[c] + 1;
+                    }
+                    taruh_teks(px, sep_y, H);
+                }
+            }
         }
     }
-
-    gambar_layer_border_smart(buf, x_awal, y_awal, ks, ke, bs, be);
 
     /* Outline untuk clipboard area */
     if (klip_ada_area) {
         warna_set_buffer(WARNAD_HIJAU, WARNAL_DEFAULT);
-        gambar_kotak_outline(buf, x_awal, y_awal, ks, ke, bs, be,
+        gambar_kotak_outline_sticky(buf, x_awal, y_awal, ks, ke, bs, be,
+                             sk_end, sb_end,
                              klip_x1, klip_y1, klip_x2, klip_y2);
     }
 
     /* Outline untuk seleksi */
     if (sedang_memilih && jangkar_x >= 0) {
         warna_set_buffer(WARNAD_BIRU, WARNAL_DEFAULT);
-        gambar_kotak_outline(buf, x_awal, y_awal, ks, ke, bs, be,
+        gambar_kotak_outline_sticky(buf, x_awal, y_awal, ks, ke, bs, be,
+                             sk_end, sb_end,
                              jangkar_x, jangkar_y,
                              buf->cfg.aktif_x, buf->cfg.aktif_y);
     }
     if (seleksi_aktif) {
         warna_set_buffer(WARNAD_BIRU, WARNAL_DEFAULT);
-        gambar_kotak_outline(buf, x_awal, y_awal, ks, ke, bs, be,
+        gambar_kotak_outline_sticky(buf, x_awal, y_awal, ks, ke, bs, be,
+                             sk_end, sb_end,
                              seleksi_x1, seleksi_y1,
                              seleksi_x2, seleksi_y2);
     }
@@ -1927,7 +2262,8 @@ void render_jendela_spesifik(const struct buffer_tabel *buf,
         ay = buf->tergabung[ay][ax].y_anchor;
     }
     warna_set_buffer(WARNAD_PUTIH, WARNAL_DEFAULT);
-    gambar_kotak_outline(buf, x_awal, y_awal, ks, ke, bs, be,
+    gambar_kotak_outline_sticky(buf, x_awal, y_awal, ks, ke, bs, be,
+                         sk_end, sb_end,
                          ax, ay, bx, by);
 
     /* Outline seleksi random */
@@ -1938,7 +2274,8 @@ void render_jendela_spesifik(const struct buffer_tabel *buf,
             continue;
         }
         warna_set_buffer(WARNAD_BIRU, WARNAL_DEFAULT);
-        gambar_kotak_outline(buf, x_awal, y_awal, ks, ke, bs, be,
+        gambar_kotak_outline_sticky(buf, x_awal, y_awal, ks, ke, bs, be,
+                             sk_end, sb_end,
                              cx, cy, cx, cy);
     }
 

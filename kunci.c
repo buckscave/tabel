@@ -856,6 +856,29 @@ static int kunci_escape_sequence(struct buffer_tabel *cur,
         return 1;
     }
 
+    /* Alt+T (0xC3 0xB4): Toggle sticky baris */
+    if (panjang_kunci == 2 &&
+        (unsigned char)buf_kunci[0] == 0xC3 &&
+        (unsigned char)buf_kunci[1] == 0xB4) {
+        toggle_sticky_baris(cur);
+        return 1;
+    }
+
+    /* Alt+T via ESC t: Toggle sticky baris (terminal metaSendsEscape) */
+    if (panjang_kunci == 2 &&
+        (unsigned char)buf_kunci[0] == 0x1B &&
+        (unsigned char)buf_kunci[1] == 't') {
+        toggle_sticky_baris(cur);
+        return 1;
+    }
+
+    /* Ctrl+T (0x14): Toggle sticky kolom */
+    if (panjang_kunci == 1 &&
+        (unsigned char)buf_kunci[0] == 0x14) {
+        toggle_sticky_kolom(cur);
+        return 1;
+    }
+
     return 0;
 }
 

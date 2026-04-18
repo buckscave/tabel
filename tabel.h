@@ -48,7 +48,7 @@
 #define NAMA_APLIKASI        "TABEL 3.0"
 #define MAKS_GLYPH           8
 #define MAKS_KOLOM           702
-#define MAKS_BARIS           100000
+#define MAKS_BARIS           1000000
 #define MAKS_TEKS            1024
 #define MAKS_SELEKSI         1024
 #define UNDO_MAKS            4096
@@ -303,6 +303,8 @@ struct konfigurasi {
     char enkoding[ENKODING_MAKS];
     int kotor;
     char csv_delim[PANJANG_DELIM_MAKS];
+    int sticky_baris;   /* Jumlah baris sticky (freeze pane) */
+    int sticky_kolom;   /* Jumlah kolom sticky (freeze pane) */
 };
 
 struct glyph {
@@ -367,6 +369,10 @@ struct lembar_tabel {
     struct warna_kombinasi **warna_sel;
     font_style **style_sel;           /* Font style per sel */
     jenis_format_sel **format_sel;
+
+    /* Sticky (Freeze Pane) */
+    int sticky_baris;   /* Jumlah baris yang tidak ikut scroll vertikal */
+    int sticky_kolom;   /* Jumlah kolom yang tidak ikut scroll horizontal */
 
     /* Jumlah kolom dan baris */
     int kolom, baris;
@@ -688,6 +694,10 @@ void sisip_baris_setelah(struct buffer_tabel *buf);
 void sisip_baris_sebelum(struct buffer_tabel *buf);
 void hapus_kolom_aktif(struct buffer_tabel *buf);
 void hapus_baris_aktif(struct buffer_tabel *buf);
+
+/* Sticky (Freeze Pane) */
+void toggle_sticky_baris(struct buffer_tabel *buf);
+void toggle_sticky_kolom(struct buffer_tabel *buf);
 
 /* Sortir */
 void sortir_kolom_aktif(struct buffer_tabel *buf);
@@ -1141,11 +1151,11 @@ int lebar_tampilan_string_utf8(const char *s);
 int apakah_menggabung(unsigned int cp);
 unsigned int dekode_cp_utf8(const char *p, int *len);
 
-/* I/O TBL (Native TABEL Format) */
+/* I/O TBL (berkas/tbl.c - Native TABEL Format) */
 int buka_tbl(struct buffer_tabel **pbuf, const char *fn);
 int simpan_tbl(const struct buffer_tabel *buf, const char *fn);
 int tbl_apakah_valid(const char *fn);
-int tbl_info(const char *fn, int *version, int *rows, int *cols, 
+int tbl_info(const char *fn, int *version, int *rows, int *cols,
     unsigned short *flags);
 const char *tbl_get_error(void);
 
@@ -1153,15 +1163,13 @@ const char *tbl_get_error(void);
 int simpan_txt(const struct buffer_tabel *buf, const char *fn);
 int buka_txt(struct buffer_tabel **pbuf, const char *fn);
 
-/* I/O CSV */
+/* I/O CSV (berkas/csv.c) */
 int simpan_csv(const struct buffer_tabel *buf, const char *fn);
 int buka_csv(struct buffer_tabel **pbuf, const char *fn);
 
-/* I/O SQL */
+/* I/O SQL & DB (berkas/sql.c - Multi-Dialect) */
 int simpan_sql(const struct buffer_tabel *buf, const char *fn);
 int buka_sql(struct buffer_tabel **pbuf, const char *fn);
-
-/* I/O DB (Biner + SQLite) */
 int simpan_db(const struct buffer_tabel *buf, const char *fn);
 int buka_db(struct buffer_tabel **pbuf, const char *fn);
 int buka_db_native(struct buffer_tabel **pbuf, const char *fn);

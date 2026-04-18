@@ -942,15 +942,22 @@ void geser_atas(struct buffer_tabel *buf) {
 void pastikan_aktif_terlihat(struct buffer_tabel *buf) {
     int x_awal, y_awal, lv, tv, ks, ke, bs, be;
     int w_total, h_total, c, r;
+    int sticky_k = buf->cfg.sticky_kolom;
+    int sticky_b = buf->cfg.sticky_baris;
 
     hitung_viewport(buf, &x_awal, &y_awal, &lv, &tv, &ks, &ke, &bs, &be);
 
     if (buf->cfg.aktif_x < ks) {
-        buf->cfg.lihat_kolom = buf->cfg.aktif_x;
+        /* Jika aktif_x dalam sticky range, jangan scroll */
+        if (buf->cfg.aktif_x < sticky_k) {
+            /* Sel sticky, tidak perlu scroll */
+        } else {
+            buf->cfg.lihat_kolom = buf->cfg.aktif_x;
+        }
     } else if (buf->cfg.aktif_x > ke) {
         w_total = 0;
         c = buf->cfg.aktif_x;
-        while (c >= 0) {
+        while (c >= sticky_k) {
             int w = buf->lebar_kolom[c] + 1;
             if (w_total + w > lv && c != buf->cfg.aktif_x) {
                 c++;
@@ -959,16 +966,21 @@ void pastikan_aktif_terlihat(struct buffer_tabel *buf) {
             w_total += w;
             c--;
         }
-        if (c < 0) c = 0;
+        if (c < sticky_k) c = sticky_k;
         buf->cfg.lihat_kolom = c;
     }
 
     if (buf->cfg.aktif_y < bs) {
-        buf->cfg.lihat_baris = buf->cfg.aktif_y;
+        /* Jika aktif_y dalam sticky range, jangan scroll */
+        if (buf->cfg.aktif_y < sticky_b) {
+            /* Sel sticky, tidak perlu scroll */
+        } else {
+            buf->cfg.lihat_baris = buf->cfg.aktif_y;
+        }
     } else if (buf->cfg.aktif_y > be) {
         h_total = 0;
         r = buf->cfg.aktif_y;
-        while (r >= 0) {
+        while (r >= sticky_b) {
             int h = buf->tinggi_baris[r] + 1;
             if (h_total + h > tv && r != buf->cfg.aktif_y) {
                 r++;
@@ -977,7 +989,7 @@ void pastikan_aktif_terlihat(struct buffer_tabel *buf) {
             h_total += h;
             r--;
         }
-        if (r < 0) r = 0;
+        if (r < sticky_b) r = sticky_b;
         buf->cfg.lihat_baris = r;
     }
 
@@ -987,6 +999,19 @@ void pastikan_aktif_terlihat(struct buffer_tabel *buf) {
         buf->cfg.lihat_kolom = buf->cfg.kolom - 1;
     if (buf->cfg.lihat_baris > buf->cfg.baris - 1)
         buf->cfg.lihat_baris = buf->cfg.baris - 1;
+
+    /* Pastikan scroll offset tidak kurang dari sticky */
+    if (sticky_k > 0 && buf->cfg.lihat_kolom < sticky_k)
+        buf->cfg.lihat_kolom = sticky_k;
+    if (sticky_b > 0 && buf->cfg.lihat_baris < sticky_b)
+        buf->cfg.lihat_baris = sticky_b;
+
+    /* Sinkronkan ke lembar */
+    if (buf->lembar && buf->lembar_aktif >= 0 && 
+        buf->lembar_aktif < buf->jumlah_lembar) {
+        buf->lembar[buf->lembar_aktif]->lihat_kolom = buf->cfg.lihat_kolom;
+        buf->lembar[buf->lembar_aktif]->lihat_baris = buf->cfg.lihat_baris;
+    }
 }
 
 /* ============================================================
@@ -1102,11 +1127,17 @@ void bersihkan_baris_aktif(struct buffer_tabel *buf) {
 void sisip_kolom_setelah(struct buffer_tabel *buf) {
     int c, r;
     char nama_kol[4];
+    struct lembar_tabel *lem;
 
     if (buf->cfg.kolom >= MAKS_KOLOM) return;
 
+    /* Resize lembar aktif sebelum insert untuk menghindari segfault */
+    lem = buf->lembar[buf->lembar_aktif];
+    if (ubah_ukuran_lembar(lem, lem->baris, lem->kolom + 1) != 0) return;
+    sinkronkan_pointer_lembar_aktif(buf);
+
     for (r = 0; r < buf->cfg.baris; r++) {
-        for (c = buf->cfg.kolom; c > buf->cfg.aktif_x + 1; c--) {
+        for (c = buf->cfg.kolom - 1; c > buf->cfg.aktif_x + 1; c--) {
             salin_str_aman(buf->isi[r][c], buf->isi[r][c-1], MAKS_TEKS);
             buf->perataan_sel[r][c] = buf->perataan_sel[r][c-1];
         }
@@ -1114,7 +1145,6 @@ void sisip_kolom_setelah(struct buffer_tabel *buf) {
         buf->perataan_sel[r][buf->cfg.aktif_x + 1] = RATA_KIRI;
     }
 
-    buf->cfg.kolom++;
     buf->cfg.kotor = 1;
     kolom_ke_nama(buf->cfg.aktif_x, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status), 
@@ -1124,11 +1154,17 @@ void sisip_kolom_setelah(struct buffer_tabel *buf) {
 void sisip_kolom_sebelum(struct buffer_tabel *buf) {
     int c, r;
     char nama_kol[4];
+    struct lembar_tabel *lem;
 
     if (buf->cfg.kolom >= MAKS_KOLOM) return;
 
+    /* Resize lembar aktif sebelum insert untuk menghindari segfault */
+    lem = buf->lembar[buf->lembar_aktif];
+    if (ubah_ukuran_lembar(lem, lem->baris, lem->kolom + 1) != 0) return;
+    sinkronkan_pointer_lembar_aktif(buf);
+
     for (r = 0; r < buf->cfg.baris; r++) {
-        for (c = buf->cfg.kolom; c > buf->cfg.aktif_x; c--) {
+        for (c = buf->cfg.kolom - 1; c > buf->cfg.aktif_x; c--) {
             salin_str_aman(buf->isi[r][c], buf->isi[r][c-1], MAKS_TEKS);
             buf->perataan_sel[r][c] = buf->perataan_sel[r][c-1];
         }
@@ -1136,7 +1172,6 @@ void sisip_kolom_sebelum(struct buffer_tabel *buf) {
         buf->perataan_sel[r][buf->cfg.aktif_x] = RATA_KIRI;
     }
 
-    buf->cfg.kolom++;
     buf->cfg.kotor = 1;
     kolom_ke_nama(buf->cfg.aktif_x, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status), 
@@ -1145,10 +1180,16 @@ void sisip_kolom_sebelum(struct buffer_tabel *buf) {
 
 void sisip_baris_setelah(struct buffer_tabel *buf) {
     int c, r;
+    struct lembar_tabel *lem;
 
     if (buf->cfg.baris >= MAKS_BARIS) return;
 
-    for (r = buf->cfg.baris; r > buf->cfg.aktif_y + 1; r--) {
+    /* Resize lembar aktif sebelum insert untuk menghindari segfault */
+    lem = buf->lembar[buf->lembar_aktif];
+    if (ubah_ukuran_lembar(lem, lem->baris + 1, lem->kolom) != 0) return;
+    sinkronkan_pointer_lembar_aktif(buf);
+
+    for (r = buf->cfg.baris - 1; r > buf->cfg.aktif_y + 1; r--) {
         for (c = 0; c < buf->cfg.kolom; c++) {
             salin_str_aman(buf->isi[r][c], buf->isi[r-1][c], MAKS_TEKS);
             buf->perataan_sel[r][c] = buf->perataan_sel[r-1][c];
@@ -1159,7 +1200,6 @@ void sisip_baris_setelah(struct buffer_tabel *buf) {
         buf->perataan_sel[buf->cfg.aktif_y + 1][c] = RATA_KIRI;
     }
 
-    buf->cfg.baris++;
     buf->cfg.kotor = 1;
     snprintf(pesan_status, sizeof(pesan_status), 
              "Sisip baris setelah %d", buf->cfg.aktif_y + 1);
@@ -1167,10 +1207,16 @@ void sisip_baris_setelah(struct buffer_tabel *buf) {
 
 void sisip_baris_sebelum(struct buffer_tabel *buf) {
     int c, r;
+    struct lembar_tabel *lem;
 
     if (buf->cfg.baris >= MAKS_BARIS) return;
 
-    for (r = buf->cfg.baris; r > buf->cfg.aktif_y; r--) {
+    /* Resize lembar aktif sebelum insert untuk menghindari segfault */
+    lem = buf->lembar[buf->lembar_aktif];
+    if (ubah_ukuran_lembar(lem, lem->baris + 1, lem->kolom) != 0) return;
+    sinkronkan_pointer_lembar_aktif(buf);
+
+    for (r = buf->cfg.baris - 1; r > buf->cfg.aktif_y; r--) {
         for (c = 0; c < buf->cfg.kolom; c++) {
             salin_str_aman(buf->isi[r][c], buf->isi[r-1][c], MAKS_TEKS);
             buf->perataan_sel[r][c] = buf->perataan_sel[r-1][c];
@@ -1181,7 +1227,6 @@ void sisip_baris_sebelum(struct buffer_tabel *buf) {
         buf->perataan_sel[buf->cfg.aktif_y][c] = RATA_KIRI;
     }
 
-    buf->cfg.baris++;
     buf->cfg.kotor = 1;
     snprintf(pesan_status, sizeof(pesan_status), 
              "Sisip baris sebelum %d", buf->cfg.aktif_y + 1);
@@ -1190,6 +1235,7 @@ void sisip_baris_sebelum(struct buffer_tabel *buf) {
 void hapus_kolom_aktif(struct buffer_tabel *buf) {
     int c, r;
     char nama_kol[4];
+    struct lembar_tabel *lem;
 
     if (buf->cfg.kolom <= 1) return;
 
@@ -1200,9 +1246,23 @@ void hapus_kolom_aktif(struct buffer_tabel *buf) {
         }
     }
 
-    buf->cfg.kolom--;
-    if (buf->cfg.aktif_x >= buf->cfg.kolom) 
-        buf->cfg.aktif_x = buf->cfg.kolom - 1;
+    /* Resize lembar aktif setelah hapus */
+    lem = buf->lembar[buf->lembar_aktif];
+    if (buf->cfg.aktif_x >= lem->kolom - 1) 
+        buf->cfg.aktif_x = lem->kolom - 2;
+    /* Sesuaikan sticky jika kolom yang dihapus dalam range sticky */
+    if (lem->sticky_kolom > 0 && buf->cfg.aktif_x < lem->sticky_kolom) {
+        lem->sticky_kolom--;
+    }
+    if (lem->sticky_kolom >= lem->kolom - 1) {
+        lem->sticky_kolom = lem->kolom - 2;
+    }
+    if (ubah_ukuran_lembar(lem, lem->baris, lem->kolom - 1) != 0) {
+        /* Fallback: hanya kurangi counter jika resize gagal */
+        lem->kolom--;
+    }
+    sinkronkan_pointer_lembar_aktif(buf);
+
     buf->cfg.kotor = 1;
     kolom_ke_nama(buf->cfg.aktif_x, nama_kol, sizeof(nama_kol));
     snprintf(pesan_status, sizeof(pesan_status), 
@@ -1211,6 +1271,7 @@ void hapus_kolom_aktif(struct buffer_tabel *buf) {
 
 void hapus_baris_aktif(struct buffer_tabel *buf) {
     int c, r;
+    struct lembar_tabel *lem;
 
     if (buf->cfg.baris <= 1) return;
 
@@ -1221,12 +1282,86 @@ void hapus_baris_aktif(struct buffer_tabel *buf) {
         }
     }
 
-    buf->cfg.baris--;
-    if (buf->cfg.aktif_y >= buf->cfg.baris) 
-        buf->cfg.aktif_y = buf->cfg.baris - 1;
+    /* Resize lembar aktif setelah hapus */
+    lem = buf->lembar[buf->lembar_aktif];
+    if (buf->cfg.aktif_y >= lem->baris - 1) 
+        buf->cfg.aktif_y = lem->baris - 2;
+    /* Sesuaikan sticky jika baris yang dihapus dalam range sticky */
+    if (lem->sticky_baris > 0 && buf->cfg.aktif_y < lem->sticky_baris) {
+        lem->sticky_baris--;
+    }
+    if (lem->sticky_baris >= lem->baris - 1) {
+        lem->sticky_baris = lem->baris - 2;
+    }
+    if (ubah_ukuran_lembar(lem, lem->baris - 1, lem->kolom) != 0) {
+        /* Fallback: hanya kurangi counter jika resize gagal */
+        lem->baris--;
+    }
+    sinkronkan_pointer_lembar_aktif(buf);
+
     buf->cfg.kotor = 1;
     snprintf(pesan_status, sizeof(pesan_status), 
              "Hapus baris %d", buf->cfg.aktif_y + 1);
+}
+
+/* ============================================================
+ * STICKY (FREEZE PANE)
+ * ============================================================ */
+
+void toggle_sticky_baris(struct buffer_tabel *buf) {
+    struct lembar_tabel *lem;
+
+    if (!buf || !buf->lembar || buf->jumlah_lembar == 0) return;
+    lem = buf->lembar[buf->lembar_aktif];
+
+    if (lem->sticky_baris > 0) {
+        /* Nonaktifkan sticky baris */
+        lem->sticky_baris = 0;
+        buf->cfg.sticky_baris = 0;
+        snprintf(pesan_status, sizeof(pesan_status), 
+                 "Sticky baris dimatikan");
+    } else {
+        /* Aktifkan: baris 0 sampai aktif_y menjadi sticky */
+        lem->sticky_baris = buf->cfg.aktif_y + 1;
+        buf->cfg.sticky_baris = lem->sticky_baris;
+        /* Pastikan lihat_baris tidak lebih kecil dari sticky_baris */
+        if (buf->cfg.lihat_baris < lem->sticky_baris) {
+            buf->cfg.lihat_baris = lem->sticky_baris;
+            lem->lihat_baris = buf->cfg.lihat_baris;
+        }
+        snprintf(pesan_status, sizeof(pesan_status), 
+                 "Sticky baris 1-%d aktif", lem->sticky_baris);
+    }
+    buf->cfg.kotor = 1;
+}
+
+void toggle_sticky_kolom(struct buffer_tabel *buf) {
+    struct lembar_tabel *lem;
+
+    if (!buf || !buf->lembar || buf->jumlah_lembar == 0) return;
+    lem = buf->lembar[buf->lembar_aktif];
+
+    if (lem->sticky_kolom > 0) {
+        /* Nonaktifkan sticky kolom */
+        lem->sticky_kolom = 0;
+        buf->cfg.sticky_kolom = 0;
+        snprintf(pesan_status, sizeof(pesan_status), 
+                 "Sticky kolom dimatikan");
+    } else {
+        /* Aktifkan: kolom 0 sampai aktif_x menjadi sticky */
+        lem->sticky_kolom = buf->cfg.aktif_x + 1;
+        buf->cfg.sticky_kolom = lem->sticky_kolom;
+        /* Pastikan lihat_kolom tidak lebih kecil dari sticky_kolom */
+        if (buf->cfg.lihat_kolom < lem->sticky_kolom) {
+            buf->cfg.lihat_kolom = lem->sticky_kolom;
+            lem->lihat_kolom = buf->cfg.lihat_kolom;
+        }
+        char kol_buf[4];
+        kolom_ke_nama(buf->cfg.aktif_x, kol_buf, sizeof(kol_buf));
+        snprintf(pesan_status, sizeof(pesan_status), 
+                 "Sticky kolom A-%s aktif", kol_buf);
+    }
+    buf->cfg.kotor = 1;
 }
 
 /* ============================================================
