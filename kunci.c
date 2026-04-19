@@ -197,6 +197,16 @@ void lakukan_autocomplete(char *buf, int *len, int *cursor) {
     char partial[PANJANG_PATH_MAKS] = "";
     char *last_slash = strrchr(buf, '/');
     int dlen;
+    int plen;
+
+    /* Kumpulkan semua kecocokan untuk menghitung common prefix */
+    char matches[256][PANJANG_PATH_MAKS];
+    int match_count = 0;
+    int common_len = -1;  /* -1 = belum diinisialisasi */
+    int i;
+    int single_match;
+    char result[PANJANG_PATH_MAKS];
+    struct stat st;
 
     if (last_slash) {
         dlen = (int)(last_slash - buf);
@@ -210,35 +220,67 @@ void lakukan_autocomplete(char *buf, int *len, int *cursor) {
         strcpy(partial, buf);
     }
 
+    plen = (int)strlen(partial);
+
     d = opendir(path_dir);
-    if (d) {
-        while ((dir = readdir(d)) != NULL) {
-            struct stat st;
-            char tmp[PANJANG_PATH_MAKS];
-            if (strcmp(dir->d_name, ".") == 0) continue;
-            if (strcmp(dir->d_name, "..") == 0) continue;
-            if (strncmp(dir->d_name, partial, strlen(partial)) != 0) continue;
-            if (last_slash) {
-                dlen = (int)(last_slash - buf) + 1;
-                strncpy(tmp, buf, (size_t)dlen);
-                tmp[dlen] = '\0';
-                strcat(tmp, dir->d_name);
-                if (stat(tmp, &st) == 0 && S_ISDIR(st.st_mode)) {
-                    strcat(tmp, "/");
-                }
-                salin_str_aman(buf, tmp, MAKS_TEKS);
-            } else {
-                salin_str_aman(buf, dir->d_name, MAKS_TEKS);
-                if (stat(buf, &st) == 0 && S_ISDIR(st.st_mode)) {
-                    strcat(buf, "/");
-                }
-            }
-            *len = (int)strlen(buf);
-            *cursor = *len;
-            break;
+    if (!d) return;
+
+    /* Kumpulkan semua entri yang cocok dengan prefix */
+    while ((dir = readdir(d)) != NULL) {
+        if (strcmp(dir->d_name, ".") == 0) continue;
+        if (strcmp(dir->d_name, "..") == 0) continue;
+        if (strncmp(dir->d_name, partial, (size_t)plen) != 0) continue;
+        if (match_count < 256) {
+            salin_str_aman(matches[match_count], dir->d_name,
+                           PANJANG_PATH_MAKS);
+            match_count++;
         }
-        closedir(d);
     }
+    closedir(d);
+
+    if (match_count == 0) return;  /* Tidak ada kecocokan */
+
+    /* Hitung common prefix dari semua kecocokan */
+    for (i = 0; i < match_count; i++) {
+        int mlen = (int)strlen(matches[i]);
+        if (common_len < 0) {
+            common_len = mlen;
+        } else {
+            int j;
+            int max_j = common_len < mlen ? common_len : mlen;
+            for (j = 0; j < max_j; j++) {
+                if (matches[0][j] != matches[i][j]) break;
+            }
+            common_len = j;
+        }
+    }
+
+    if (common_len < plen) return;  /* Tidak bisa melengkapi lebih dari yang sudah diketik */
+
+    single_match = (match_count == 1);
+
+    /* Bentuk hasil: prefix path + common prefix nama */
+    if (last_slash) {
+        dlen = (int)(last_slash - buf) + 1;
+        strncpy(result, buf, (size_t)dlen);
+        result[dlen] = '\0';
+        strncat(result, matches[0], (size_t)common_len);
+        result[dlen + common_len] = '\0';
+    } else {
+        strncpy(result, matches[0], (size_t)common_len);
+        result[common_len] = '\0';
+    }
+
+    /* Jika hanya satu kecocokan, cek apakah direktori */
+    if (single_match) {
+        if (stat(result, &st) == 0 && S_ISDIR(st.st_mode)) {
+            strcat(result, "/");
+        }
+    }
+
+    salin_str_aman(buf, result, MAKS_TEKS);
+    *len = (int)strlen(buf);
+    *cursor = *len;
 }
 
 /* ============================================================
@@ -617,6 +659,20 @@ static int kunci_escape_sequence(struct buffer_tabel *cur,
                                  int half_scroll) {
     /* ESC tunggal: membatalkan seleksi atau mode */
     if (buf_kunci[0] == 0x1B && panjang_kunci == 1) {
+        if (mode_seleksi_baris) {
+            mode_seleksi_baris = 0;
+            seleksi_aktif = 0;
+            snprintf(pesan_status, sizeof(pesan_status),
+                     "Seleksi baris dibatalkan");
+            return 1;
+        }
+        if (mode_seleksi_kolom) {
+            mode_seleksi_kolom = 0;
+            seleksi_aktif = 0;
+            snprintf(pesan_status, sizeof(pesan_status),
+                     "Seleksi kolom dibatalkan");
+            return 1;
+        }
         if (sedang_memilih || seleksi_aktif) {
             sedang_memilih = 0;
             seleksi_aktif = 0;
@@ -689,6 +745,30 @@ static int kunci_escape_sequence(struct buffer_tabel *cur,
             case 'D': geser_kiri(cur); break;
             default: is_arrow = 0; break; /* Mencegah bentrok dengan Alt+Arrow */
         }
+        /* Update seleksi jika sedang dalam mode seleksi baris/kolom */
+        if (is_arrow && mode_seleksi_baris) {
+            seleksi_x1 = 0;
+            seleksi_y1 = jangkar_y;
+            seleksi_x2 = cur->cfg.kolom - 1;
+            seleksi_y2 = cur->cfg.aktif_y;
+            if (seleksi_y1 > seleksi_y2) {
+                int tmp = seleksi_y1; seleksi_y1 = seleksi_y2; seleksi_y2 = tmp;
+            }
+            snprintf(pesan_status, sizeof(pesan_status),
+                     "SELEKSI BARIS: %d-%d (%d baris), Enter konfirmasi",
+                     seleksi_y1 + 1, seleksi_y2 + 1, seleksi_y2 - seleksi_y1 + 1);
+        } else if (is_arrow && mode_seleksi_kolom) {
+            seleksi_x1 = jangkar_x;
+            seleksi_y1 = 0;
+            seleksi_x2 = cur->cfg.aktif_x;
+            seleksi_y2 = cur->cfg.baris - 1;
+            if (seleksi_x1 > seleksi_x2) {
+                int tmp = seleksi_x1; seleksi_x1 = seleksi_x2; seleksi_x2 = tmp;
+            }
+            snprintf(pesan_status, sizeof(pesan_status),
+                     "SELEKSI KOLOM: %d kolom, Enter konfirmasi",
+                     seleksi_x2 - seleksi_x1 + 1);
+        }
         if (is_arrow) return 1;
     }
 
@@ -711,6 +791,19 @@ static int kunci_escape_sequence(struct buffer_tabel *cur,
                 hapus_sel_atau_area(cur);
                 break;
             default: is_nav = 0; break;
+        }
+        /* Update seleksi baris jika mode seleksi aktif */
+        if (is_nav && mode_seleksi_baris && buf_kunci[2] != '3') {
+            seleksi_x1 = 0;
+            seleksi_y1 = jangkar_y;
+            seleksi_x2 = cur->cfg.kolom - 1;
+            seleksi_y2 = cur->cfg.aktif_y;
+            if (seleksi_y1 > seleksi_y2) {
+                int tmp = seleksi_y1; seleksi_y1 = seleksi_y2; seleksi_y2 = tmp;
+            }
+            snprintf(pesan_status, sizeof(pesan_status),
+                     "SELEKSI BARIS: %d-%d (%d baris), Enter konfirmasi",
+                     seleksi_y1 + 1, seleksi_y2 + 1, seleksi_y2 - seleksi_y1 + 1);
         }
         if (is_nav) return 1;
     }
@@ -824,11 +917,30 @@ static int kunci_escape_sequence(struct buffer_tabel *cur,
         return 1;
     }
 
-    /* Alt+v (0xC3 0xB6): Seleksi kolom penuh */
+    /* Alt+v (0xC3 0xB6): Mulai seleksi kolom dinamis */
     if (panjang_kunci == 2 &&
         (unsigned char)buf_kunci[0] == 0xC3 &&
         (unsigned char)buf_kunci[1] == 0xB6) {
-        seleksi_kolom_penuh_aktif(cur);
+        mode_seleksi_kolom = 1;
+        mode_seleksi_baris = 0;
+        jangkar_x = cur->cfg.aktif_x;
+        jangkar_y = cur->cfg.aktif_y;
+        /* Seleksi kolom awal */
+        seleksi_x1 = cur->cfg.aktif_x;
+        seleksi_y1 = 0;
+        seleksi_x2 = cur->cfg.aktif_x;
+        seleksi_y2 = cur->cfg.baris - 1;
+        seleksi_aktif = 1;
+        salin_str_aman(pesan_status, "SELEKSI KOLOM: navigasi kiri/kanan, Enter konfirmasi",
+                       sizeof(pesan_status));
+        return 1;
+    }
+
+    /* Alt+t (0xC3 0xB4): Toggle sticky baris (freeze rows) */
+    if (panjang_kunci == 2 &&
+        (unsigned char)buf_kunci[0] == 0xC3 &&
+        (unsigned char)buf_kunci[1] == 0xB4) {
+        toggle_sticky_baris(cur);
         return 1;
     }
 
@@ -894,15 +1006,25 @@ static int kunci_prefix(struct buffer_tabel *cur,
     /* Prefix Delete: d -> c/r */
     if (*prefix_delete) {
         if (c == 'c') {
-            hapus_kolom_aktif(cur);
-            snprintf(pesan_status, sizeof(pesan_status), "Hapus Kolom");
+            /* Jika ada seleksi aktif, hapus range kolom yang terseleksi */
+            if (seleksi_aktif && seleksi_x1 >= 0 && seleksi_x2 >= 0) {
+                hapus_kolom_range(cur, seleksi_x1, seleksi_x2);
+            } else {
+                hapus_kolom_aktif(cur);
+            }
         } else if (c == 'r') {
-            hapus_baris_aktif(cur);
-            snprintf(pesan_status, sizeof(pesan_status), "Hapus Baris");
+            /* Jika ada seleksi aktif, hapus range baris yang terseleksi */
+            if (seleksi_aktif && seleksi_y1 >= 0 && seleksi_y2 >= 0) {
+                hapus_baris_range(cur, seleksi_y1, seleksi_y2);
+            } else {
+                hapus_baris_aktif(cur);
+            }
         } else {
             snprintf(pesan_status, sizeof(pesan_status), "Batal hapus");
         }
         *prefix_delete = 0;
+        seleksi_aktif = 0;
+        sedang_memilih = 0;
         return 1;
     }
 
@@ -1059,7 +1181,19 @@ static int kunci_satu_huruf(struct buffer_tabel *cur,
 
     /* Enter: Edit atau konfirmasi seleksi */
     if (c == '\n' || c == '\r') {
-        if (sedang_memilih) {
+        if (mode_seleksi_baris) {
+            /* Konfirmasi seleksi baris dinamis */
+            mode_seleksi_baris = 0;
+            snprintf(pesan_status, sizeof(pesan_status),
+                     "Seleksi baris %d-%d aktif", seleksi_y1 + 1, seleksi_y2 + 1);
+            return 1;
+        } else if (mode_seleksi_kolom) {
+            /* Konfirmasi seleksi kolom dinamis */
+            mode_seleksi_kolom = 0;
+            snprintf(pesan_status, sizeof(pesan_status),
+                     "Seleksi kolom aktif (%d kolom)", seleksi_x2 - seleksi_x1 + 1);
+            return 1;
+        } else if (sedang_memilih) {
             jx = jangkar_x;
             jy = jangkar_y;
             ax = cur->cfg.aktif_x;
@@ -1502,9 +1636,26 @@ static int kunci_satu_huruf(struct buffer_tabel *cur,
         return 1;
     }
 
-    /* Ctrl+V (0x16): Seleksi baris penuh */
+    /* Ctrl+V (0x16): Mulai seleksi baris dinamis */
     if (c == 0x16) {
-        seleksi_baris_penuh_aktif(cur);
+        mode_seleksi_baris = 1;
+        mode_seleksi_kolom = 0;
+        jangkar_x = cur->cfg.aktif_x;
+        jangkar_y = cur->cfg.aktif_y;
+        /* Seleksi baris awal */
+        seleksi_x1 = 0;
+        seleksi_y1 = cur->cfg.aktif_y;
+        seleksi_x2 = cur->cfg.kolom - 1;
+        seleksi_y2 = cur->cfg.aktif_y;
+        seleksi_aktif = 1;
+        salin_str_aman(pesan_status, "SELEKSI BARIS: navigasi atas/bawah, Enter konfirmasi",
+                       sizeof(pesan_status));
+        return 1;
+    }
+
+    /* Ctrl+T (0x14): Toggle sticky kolom (freeze columns) */
+    if (c == 0x14) {
+        toggle_sticky_kolom(cur);
         return 1;
     }
 

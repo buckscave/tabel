@@ -105,6 +105,10 @@ int seleksi_random_x[MAKS_SELEKSI];
 int seleksi_random_y[MAKS_SELEKSI];
 int seleksi_random = 0;
 
+/* Mode Seleksi Baris/Kolom Dinamis */
+int mode_seleksi_baris = 0;  /* 1 = sedang menyeleksi baris (Ctrl+V) */
+int mode_seleksi_kolom = 0;  /* 1 = sedang menyeleksi kolom (Alt+V) */
+
 /* ============================================================
  * Helper Kolom - Konversi indeks ke nama kolom Excel
  * ============================================================ */

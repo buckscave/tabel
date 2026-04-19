@@ -1230,6 +1230,150 @@ void hapus_baris_aktif(struct buffer_tabel *buf) {
 }
 
 /* ============================================================
+ * STICKY (Freeze Pane)
+ * ============================================================ */
+
+void toggle_sticky_baris(struct buffer_tabel *buf) {
+    int aktif_y = buf->cfg.aktif_y;
+
+    if (aktif_y == 0) {
+        /* Tidak bisa sticky di baris 0 (header) - matikan sticky */
+        buf->cfg.sticky_baris = 0;
+        buf->lembar[buf->lembar_aktif]->sticky_baris = 0;
+        snprintf(pesan_status, sizeof(pesan_status),
+                 "Sticky baris: OFF");
+        return;
+    }
+
+    if (buf->cfg.sticky_baris == aktif_y) {
+        /* Sudah sticky sampai posisi ini - matikan */
+        buf->cfg.sticky_baris = 0;
+        buf->lembar[buf->lembar_aktif]->sticky_baris = 0;
+        snprintf(pesan_status, sizeof(pesan_status),
+                 "Sticky baris: OFF");
+    } else {
+        /* Set sticky sampai baris aktif (baris 0 sampai aktif_y-1 tetap) */
+        buf->cfg.sticky_baris = aktif_y;
+        buf->lembar[buf->lembar_aktif]->sticky_baris = aktif_y;
+        snprintf(pesan_status, sizeof(pesan_status),
+                 "Sticky baris: %d baris", aktif_y);
+    }
+    buf->cfg.kotor = 1;
+}
+
+void toggle_sticky_kolom(struct buffer_tabel *buf) {
+    int aktif_x = buf->cfg.aktif_x;
+    char nama_kol[4];
+
+    if (aktif_x == 0) {
+        /* Tidak bisa sticky di kolom 0 - matikan sticky */
+        buf->cfg.sticky_kolom = 0;
+        buf->lembar[buf->lembar_aktif]->sticky_kolom = 0;
+        snprintf(pesan_status, sizeof(pesan_status),
+                 "Sticky kolom: OFF");
+        return;
+    }
+
+    if (buf->cfg.sticky_kolom == aktif_x) {
+        /* Sudah sticky sampai posisi ini - matikan */
+        buf->cfg.sticky_kolom = 0;
+        buf->lembar[buf->lembar_aktif]->sticky_kolom = 0;
+        snprintf(pesan_status, sizeof(pesan_status),
+                 "Sticky kolom: OFF");
+    } else {
+        /* Set sticky sampai kolom aktif (kolom 0 sampai aktif_x-1 tetap) */
+        buf->cfg.sticky_kolom = aktif_x;
+        buf->lembar[buf->lembar_aktif]->sticky_kolom = aktif_x;
+        kolom_ke_nama(aktif_x, nama_kol, sizeof(nama_kol));
+        snprintf(pesan_status, sizeof(pesan_status),
+                 "Sticky kolom: %d kolom (sampai %s)", aktif_x, nama_kol);
+    }
+    buf->cfg.kotor = 1;
+}
+
+/* ============================================================
+ * HAPUS BARIS/KOLOM RANGE (berdasarkan seleksi)
+ * ============================================================ */
+
+void hapus_baris_range(struct buffer_tabel *buf, int y_mulai, int y_akhir) {
+    int jumlah_hapus;
+    int c, r;
+
+    if (!buf) return;
+    if (y_mulai < 0 || y_akhir < 0) return;
+    if (y_mulai > y_akhir) { int tmp = y_mulai; y_mulai = y_akhir; y_akhir = tmp; }
+    if (y_akhir >= buf->cfg.baris) y_akhir = buf->cfg.baris - 1;
+
+    jumlah_hapus = y_akhir - y_mulai + 1;
+
+    /* Jika menghapus semua baris, sisakan 1 */
+    if (jumlah_hapus >= buf->cfg.baris) {
+        jumlah_hapus = buf->cfg.baris - 1;
+        y_mulai = 0;
+    }
+
+    /* Geser baris ke atas untuk mengisi kekosongan */
+    for (r = y_mulai; r < buf->cfg.baris - jumlah_hapus; r++) {
+        for (c = 0; c < buf->cfg.kolom; c++) {
+            salin_str_aman(buf->isi[r][c], buf->isi[r + jumlah_hapus][c],
+                           MAKS_TEKS);
+            buf->perataan_sel[r][c] = buf->perataan_sel[r + jumlah_hapus][c];
+        }
+    }
+
+    buf->cfg.baris -= jumlah_hapus;
+    if (buf->cfg.baris < 1) buf->cfg.baris = 1;
+    if (buf->cfg.aktif_y >= buf->cfg.baris)
+        buf->cfg.aktif_y = buf->cfg.baris - 1;
+    buf->cfg.kotor = 1;
+
+    /* Bersihkan seleksi */
+    seleksi_aktif = 0;
+
+    snprintf(pesan_status, sizeof(pesan_status),
+             "Hapus %d baris (%d-%d)", jumlah_hapus, y_mulai + 1, y_akhir + 1);
+}
+
+void hapus_kolom_range(struct buffer_tabel *buf, int x_mulai, int x_akhir) {
+    int jumlah_hapus;
+    int c, r;
+
+    if (!buf) return;
+    if (x_mulai < 0 || x_akhir < 0) return;
+    if (x_mulai > x_akhir) { int tmp = x_mulai; x_mulai = x_akhir; x_akhir = tmp; }
+    if (x_akhir >= buf->cfg.kolom) x_akhir = buf->cfg.kolom - 1;
+
+    jumlah_hapus = x_akhir - x_mulai + 1;
+
+    /* Jika menghapus semua kolom, sisakan 1 */
+    if (jumlah_hapus >= buf->cfg.kolom) {
+        jumlah_hapus = buf->cfg.kolom - 1;
+        x_mulai = 0;
+    }
+
+    /* Geser kolom ke kiri untuk mengisi kekosongan */
+    for (r = 0; r < buf->cfg.baris; r++) {
+        for (c = x_mulai; c < buf->cfg.kolom - jumlah_hapus; c++) {
+            salin_str_aman(buf->isi[r][c], buf->isi[r][c + jumlah_hapus],
+                           MAKS_TEKS);
+            buf->perataan_sel[r][c] = buf->perataan_sel[r][c + jumlah_hapus];
+        }
+    }
+
+    buf->cfg.kolom -= jumlah_hapus;
+    if (buf->cfg.kolom < 1) buf->cfg.kolom = 1;
+    if (buf->cfg.aktif_x >= buf->cfg.kolom)
+        buf->cfg.aktif_x = buf->cfg.kolom - 1;
+    buf->cfg.kotor = 1;
+
+    /* Bersihkan seleksi */
+    seleksi_aktif = 0;
+
+    snprintf(pesan_status, sizeof(pesan_status),
+             "Hapus %d kolom", jumlah_hapus);
+}
+
+/* ============================================================
  * SORTIR
  * ============================================================ */
 

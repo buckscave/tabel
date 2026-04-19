@@ -2287,6 +2287,7 @@ void render_jendela_spesifik(const struct buffer_tabel *buf,
 void render_semua_jendela(void)
 {
     struct rect area;
+    int x;
 
     bersihkan_layar_buffer();
     /* Tidak ada global topbar lagi - topbar sekarang per-window */
@@ -2304,6 +2305,15 @@ void render_semua_jendela(void)
     }
 
     gambar_message_bar();
+
+    /* Invalidasi front buffer untuk baris message bar agar selalu
+     * di-redraw penuh, mencegah residu dari penulisan langsung
+     * ke terminal (seperti prompt nama berkas) yang menyebabkan
+     * front buffer tidak sinkron dengan konten terminal sebenarnya */
+    for (x = 0; x < lebar_layar; x++) {
+        buffer_depan[tinggi_layar - 1][x].panjang = -1;
+    }
+
     pesan_status[0] = '\0';
     terapkan_delta();
 }

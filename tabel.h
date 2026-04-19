@@ -565,6 +565,8 @@ extern int seleksi_x2;
 extern int seleksi_y2;
 extern int seleksi_aktif;
 extern int seleksi_random;
+extern int mode_seleksi_baris;  /* 1 = sedang menyeleksi baris (Ctrl+V) */
+extern int mode_seleksi_kolom;  /* 1 = sedang menyeleksi kolom (Alt+V) */
 
 extern char pesan_status[256];
 
@@ -694,6 +696,8 @@ void sisip_baris_setelah(struct buffer_tabel *buf);
 void sisip_baris_sebelum(struct buffer_tabel *buf);
 void hapus_kolom_aktif(struct buffer_tabel *buf);
 void hapus_baris_aktif(struct buffer_tabel *buf);
+void hapus_baris_range(struct buffer_tabel *buf, int y_mulai, int y_akhir);
+void hapus_kolom_range(struct buffer_tabel *buf, int x_mulai, int x_akhir);
 
 /* Sticky (Freeze Pane) */
 void toggle_sticky_baris(struct buffer_tabel *buf);

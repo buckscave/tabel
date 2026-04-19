@@ -187,47 +187,71 @@ void minta_nama_berkas(char *buf, size_t n, const char *label)
     int pos_x_start;
     int ret;
     int i;
+    int selesai = 0;
 
     input_buf[0] = '\0';
     cols = ambil_lebar_terminal();
     rows = ambil_tinggi_terminal();
     pos_x_start = (int)strlen(label) + 2;
 
-    /* Bersihkan status bar */
+    /* Bersihkan status bar (full redraw) */
     atur_posisi_kursor(1, rows);
     for (i = 0; i < cols; i++) {
         write(STDOUT_FILENO, " ", 1);
     }
 
-    /* Tulis label prompt di status bar */
+    /* Tulis label prompt di status bar.
+     * Gunakan write() (unbuffered) bukan printf() (buffered)
+     * untuk menghindari interleaving dengan write() lainnya. */
     atur_posisi_kursor(2, rows);
-    printf("%s", label);
+    write(STDOUT_FILENO, label, strlen(label));
     write(STDOUT_FILENO, "\033[?25h", 6);
     fflush(stdout);
 
-    /* Panggil editor input di status bar */
-    ret = baca_input_edit(input_buf, &len, &cursor, pos_x_start, rows);
+    /* Loop berkelanjutan: Tab melakukan autocomplete tapi tidak keluar,
+     * hanya Enter yang mengkonfirmasi, ESC yang membatalkan */
+    while (!selesai) {
+        ret = baca_input_edit(input_buf, &len, &cursor, pos_x_start, rows);
 
-    /* ESC ditekan - batal */
-    if (ret == KEY_BATAL) {
-        buf[0] = '\0';
-        return;
-    }
-
-    /* Tab ditekan - autocomplete */
-    if (ret == '\t') {
-        lakukan_autocomplete(input_buf, &len, &cursor);
-        /* Redraw hasil autocomplete */
-        atur_posisi_kursor(1, rows);
-        for (i = 0; i < cols; i++) {
-            write(STDOUT_FILENO, " ", 1);
+        /* ESC ditekan - batal */
+        if (ret == KEY_BATAL) {
+            buf[0] = '\0';
+            write(STDOUT_FILENO, "\033[?25l", 6);
+            fflush(stdout);
+            return;
         }
-        atur_posisi_kursor(2, rows);
-        printf("%s %s", label, input_buf);
-        write(STDOUT_FILENO, "\033[?25l", 6);
-        fflush(stdout);
+
+        /* Tab ditekan - autocomplete, lalu lanjutkan loop */
+        if (ret == '\t') {
+            lakukan_autocomplete(input_buf, &len, &cursor);
+
+            /* Full redraw baris input setelah autocomplete.
+             * PENTING: Gunakan hanya write() (unbuffered) untuk menulis
+             * ke terminal, jangan campur dengan printf() (buffered),
+             * karena urutan output bisa terbalik jika diinterleave. */
+            atur_posisi_kursor(1, rows);
+            for (i = 0; i < cols; i++) {
+                write(STDOUT_FILENO, " ", 1);
+            }
+            atur_posisi_kursor(2, rows);
+            warna_tulis_seq(STDOUT_FILENO, WARNAD_PUTIH, WARNAL_DEFAULT);
+            /* Tulis label menggunakan write() agar urutan output terjamin */
+            write(STDOUT_FILENO, label, strlen(label));
+            /* Tulis isi input_buf */
+            write(STDOUT_FILENO, input_buf, strlen(input_buf));
+            warna_tulis_reset(STDOUT_FILENO);
+            fflush(stdout);
+            continue;  /* Kembali ke loop, jangan keluar */
+        }
+
+        /* Enter ditekan - konfirmasi input, keluar dari loop */
+        if (ret == '\n' || ret == '\r') {
+            selesai = 1;
+        }
     }
 
+    write(STDOUT_FILENO, "\033[?25l", 6);
+    fflush(stdout);
     salin_str_aman(buf, input_buf, n);
 }
 
