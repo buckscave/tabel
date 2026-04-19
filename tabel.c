@@ -249,8 +249,6 @@ struct lembar_tabel *duplikat_lembar(const struct lembar_tabel *src) {
     baru->aktif_y = src->aktif_y;
     baru->lihat_kolom = src->lihat_kolom;
     baru->lihat_baris = src->lihat_baris;
-    baru->sticky_baris = src->sticky_baris;
-    baru->sticky_kolom = src->sticky_kolom;
 
     for (r = 0; r < src->baris; r++) {
         baru->tinggi_baris[r] = src->tinggi_baris[r];
@@ -399,8 +397,6 @@ void sinkronkan_pointer_lembar_aktif(struct buffer_tabel *buf) {
     buf->cfg.aktif_y = lem->aktif_y;
     buf->cfg.lihat_kolom = lem->lihat_kolom;
     buf->cfg.lihat_baris = lem->lihat_baris;
-    buf->cfg.sticky_baris = lem->sticky_baris;
-    buf->cfg.sticky_kolom = lem->sticky_kolom;
 }
 
 void rename_lembar(struct buffer_tabel *buf, int idx, const char *nama) {
